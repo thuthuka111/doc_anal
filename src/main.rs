@@ -7,6 +7,7 @@ use std::{
 };
 
 mod decoder;
+mod model;
 
 fn main() -> io::Result<()> {
     println!("This is a rust program that is supposed to compary .doc and .docx files to see if they have maybe been converted from each other");
