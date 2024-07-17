@@ -8,6 +8,7 @@ use std::{
 
 mod decoder;
 mod model;
+mod subreader;
 
 fn main() -> io::Result<()> {
     println!("This is a rust program that is supposed to compary .doc and .docx files to see if they have maybe been converted from each other");
@@ -21,6 +22,7 @@ fn main() -> io::Result<()> {
     let fib = &word_doc.fib;
     println!("{:?}", fib);
 
+    word_doc.print_cfb_structure();
     Ok(())
 }
 
