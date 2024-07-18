@@ -174,9 +174,14 @@ pub struct PropertySetStreamStart {
     pub rgIdOffset: Vec<RgIdOffset>,
 }
 
+#[derive(Debug, Clone)]
+pub struct DictionaryPropertyType {
+    pub dictionary: Vec<(String, u32)>,
+}
+
 #[allow(non_camel_case_types, unused)]
 #[derive(Debug, Clone)]
-pub enum PropertyType {
+pub enum NormalPropertyType {
     VT_EMPTY,
     VT_NULL,
     VT_I2(i16),
@@ -214,7 +219,7 @@ pub enum PropertyType {
     VT_VECTOR_VT_R8(Vec<f64>),
     VT_VECTOR_VT_CY(Vec<i64>),
     VT_VECTOR_VT_BOOL(Vec<bool>),
-    VT_VECTOR_VT_VARIANT(Vec<PropertyType>),
+    VT_VECTOR_VT_VARIANT(Vec<NormalPropertyType>),
     VT_VECTOR_VT_I1(Vec<i8>),
     VT_VECTOR_VT_UI1(Vec<u8>),
     VT_VECTOR_VT_UI2(Vec<u16>),
@@ -235,7 +240,7 @@ pub enum PropertyType {
     VT_ARRAY_VT_BSTR(Vec<String>),
     VT_ARRAY_VT_ERROR(Vec<i32>),
     VT_ARRAY_VT_BOOL(Vec<bool>),
-    VT_ARRAY_VT_VARIANT(Vec<PropertyType>),
+    VT_ARRAY_VT_VARIANT(Vec<NormalPropertyType>),
     VT_ARRAY_VT_DECIMAL(Vec<f64>),
     VT_ARRAY_VT_I1(Vec<i8>),
     VT_ARRAY_VT_UI1(Vec<u8>),
@@ -249,31 +254,59 @@ pub enum PropertyType {
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
 pub struct DocumentSummaryInfoStream {
-    pub propertySetStreamVals: PropertySetStreamStart,
-    pub documentSummaryInformation: PropertySet<DocSumProperty>,
-    pub userDefinedPropertySet: Option<PropertySet<UserDefinedProperty>>,
+    codepage: Option<NormalPropertyType>,
+    category: Option<NormalPropertyType>,
+    presformat: Option<NormalPropertyType>,
+    bytecount: Option<NormalPropertyType>,
+    linecount: Option<NormalPropertyType>,
+    paracount: Option<NormalPropertyType>,
+    slidecount: Option<NormalPropertyType>,
+    notecount: Option<NormalPropertyType>,
+    hiddencount: Option<NormalPropertyType>,
+    mmclipcount: Option<NormalPropertyType>,
+    scale: Option<NormalPropertyType>,
+    headingpair: Option<NormalPropertyType>,
+    docparts: Option<NormalPropertyType>,
+    manager: Option<NormalPropertyType>,
+    company: Option<NormalPropertyType>,
+    linksdirty: Option<NormalPropertyType>,
+    chars_with_spaces: Option<NormalPropertyType>,
+    sharedoc: Option<NormalPropertyType>,
+    linkbase: Option<NormalPropertyType>,
+    hlinks: Option<NormalPropertyType>,
+    hlinkschanged: Option<NormalPropertyType>,
+    version: Option<NormalPropertyType>,
+    digsig: Option<NormalPropertyType>,
+    content_type: Option<NormalPropertyType>,
+    content_status: Option<NormalPropertyType>,
+    language: Option<NormalPropertyType>,
+    doc_version: Option<NormalPropertyType>,
+
+    custom_property_dict: Vec<(String, NormalPropertyType)>,
 }
 
+// Specification at: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-oleps/f7933d28-2cc4-4b36-bc23-8861cbcd37c4
+// Spec help at: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-oleps/3f9119dc-faa2-4bb9-af95-5cf128fa5fbd
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
 pub struct SummaryInformation {
-    pub title: Option<PropertyType>,
-    pub subject: Option<PropertyType>,
-    pub author: Option<PropertyType>,
-    pub keywords: Option<PropertyType>,
-    pub comments: Option<PropertyType>,
-    pub template: Option<PropertyType>,
-    pub lastAuthor: Option<PropertyType>,
-    pub revisionNumber: Option<PropertyType>,
-    pub applicationName: Option<PropertyType>,
-    pub editTime: Option<PropertyType>,
-    pub lastPrinted: Option<PropertyType>,
-    pub create_dtm: Option<PropertyType>,
-    pub lastSave_dtm: Option<PropertyType>,
-    pub pageCount: Option<PropertyType>,
-    pub wordCount: Option<PropertyType>,
-    pub charCount: Option<PropertyType>,
-    pub doc_security: Option<PropertyType>,
+    pub title: Option<NormalPropertyType>,
+    pub subject: Option<NormalPropertyType>,
+    pub author: Option<NormalPropertyType>,
+    pub keywords: Option<NormalPropertyType>,
+    pub comments: Option<NormalPropertyType>,
+    pub template: Option<NormalPropertyType>,
+    pub lastAuthor: Option<NormalPropertyType>,
+    pub revisionNumber: Option<NormalPropertyType>,
+    pub applicationName: Option<NormalPropertyType>,
+    pub editTime: Option<NormalPropertyType>,
+    pub lastPrinted: Option<NormalPropertyType>,
+    pub create_dtm: Option<NormalPropertyType>,
+    pub lastSave_dtm: Option<NormalPropertyType>,
+    pub pageCount: Option<NormalPropertyType>,
+    pub wordCount: Option<NormalPropertyType>,
+    pub charCount: Option<NormalPropertyType>,
+    pub doc_security: Option<NormalPropertyType>,
 }
 
 #[allow(non_snake_case, unused)]
@@ -292,6 +325,12 @@ pub enum PropertyIdentifier {
     BehaviourProperty,
 }
 
+#[derive(Debug, Clone)]
+pub enum PropertyType {
+    NormalPropertyType(NormalPropertyType),
+    DictionaryPropertyType(DictionaryPropertyType),
+}
+
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
 pub struct PropertyIdentifierAndOffset {
@@ -303,16 +342,16 @@ pub struct PropertyIdentifierAndOffset {
 #[derive(Debug)]
 pub struct PropertySetStream {
     pub propertySetStreamVals: PropertySetStreamStart,
-    pub propertySets: Vec<PropertySet<PropertyType>>,
+    pub propertySets: Vec<PropertySet>,
 }
 
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
-pub struct PropertySet<T> {
+pub struct PropertySet {
     pub cb: u32,
     pub cProperties: u32,
     pub rgProperties: Vec<PropertyIdentifierAndOffset>,
-    pub properties: Vec<T>,
+    pub properties: Vec<PropertyType>,
 }
 
 #[allow(non_snake_case, unused)]
@@ -321,16 +360,6 @@ pub struct RgProps {
     pub propID: u32,
     pub propOffset: u32,
 }
-
-/// DocumentSummaryProperty Value
-#[derive(Debug)]
-pub struct DocSumProperty {}
-
-/// Have not looked into implementing this yet
-#[derive(Debug)]
-pub struct UserDefinedProperty {}
-
-// endregion: Structs
 
 impl FromReader for Fib {
     #[allow(non_snake_case)]
@@ -568,9 +597,162 @@ impl FromReader for STD {
 impl FromReader for DocumentSummaryInfoStream {
     #[allow(non_snake_case)]
     fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
-        let _property_set_stream = PropertySetStream::from_reader(reader)?;
+        let property_set_stream = PropertySetStream::from_reader(reader)?;
 
-        todo!();
+        let mut codepage = None;
+        let mut category = None;
+        let mut presformat = None;
+        let mut bytecount = None;
+        let mut linecount = None;
+        let mut paracount = None;
+        let mut slidecount = None;
+        let mut notecount = None;
+        let mut hiddencount = None;
+        let mut mmclipcount = None;
+        let mut scale = None;
+        let mut headingpair = None;
+        let mut docparts = None;
+        let mut manager = None;
+        let mut company = None;
+        let mut linksdirty = None;
+        let mut chars_with_spaces = None;
+        let mut sharedoc = None;
+        let mut linkbase = None;
+        let mut hlinks = None;
+        let mut hlinkschanged = None;
+        let mut version = None;
+        let mut digsig = None;
+        let mut content_type = None;
+        let mut content_status = None;
+        let mut language = None;
+        let mut doc_version = None;
+
+        for (prop_ident_and_offset, property_type) in property_set_stream.propertySets[0]
+            .rgProperties
+            .iter()
+            .zip(property_set_stream.propertySets[0].properties.iter())
+        {
+            let property_type = match property_type {
+                PropertyType::NormalPropertyType(property_type) => property_type,
+                _ => {
+                    // This should not happen
+                    continue;
+                }
+            };
+            let something = &prop_ident_and_offset.propertyIdentifier;
+            match something {
+                PropertyIdentifier::Normal(prop_id) => match prop_id {
+                    0x0001 => codepage = Some(property_type.clone()),
+                    0x0002 => category = Some(property_type.clone()),
+                    0x0003 => presformat = Some(property_type.clone()),
+                    0x0004 => bytecount = Some(property_type.clone()),
+                    0x0005 => linecount = Some(property_type.clone()),
+                    0x0006 => paracount = Some(property_type.clone()),
+                    0x0007 => slidecount = Some(property_type.clone()),
+                    0x0008 => notecount = Some(property_type.clone()),
+                    0x0009 => hiddencount = Some(property_type.clone()),
+                    0x000A => mmclipcount = Some(property_type.clone()),
+                    0x000B => scale = Some(property_type.clone()),
+                    0x000C => headingpair = Some(property_type.clone()),
+                    0x000D => docparts = Some(property_type.clone()),
+                    0x000E => manager = Some(property_type.clone()),
+                    0x000F => company = Some(property_type.clone()),
+                    0x0010 => linksdirty = Some(property_type.clone()),
+                    0x0011 => chars_with_spaces = Some(property_type.clone()),
+                    0x0013 => sharedoc = Some(property_type.clone()),
+                    0x0014 => linkbase = Some(property_type.clone()),
+                    0x0015 => hlinks = Some(property_type.clone()),
+                    0x0016 => hlinkschanged = Some(property_type.clone()),
+                    0x0017 => version = Some(property_type.clone()),
+                    0x0018 => digsig = Some(property_type.clone()),
+                    0x001A => content_type = Some(property_type.clone()),
+                    0x001B => content_status = Some(property_type.clone()),
+                    0x001C => language = Some(property_type.clone()),
+                    0x001D => doc_version = Some(property_type.clone()),
+                    _ => {}
+                },
+                PropertyIdentifier::CodePageProperty => {}
+                _ => {
+                    panic!("Bad property type identifer in DocumentSummaryInfoStream")
+                }
+            }
+        }
+
+        // Doing User Defined Properties if there are
+        let custom_property_dict: Vec<(String, NormalPropertyType)> = match property_set_stream
+            .propertySets
+            .get(1)
+        {
+            Some(property_set) => match &property_set.properties[0] {
+                PropertyType::DictionaryPropertyType(dictionary) => {
+                    let mut custom_property_dict: Vec<(String, NormalPropertyType)> = Vec::new();
+                    let mut dict_item_to_rgid_n_offset_index = Vec::new();
+
+                    for (name, dict_def_prop_id) in &dictionary.dictionary {
+                        for (index, prop_ident_and_offset) in
+                            property_set.rgProperties.iter().enumerate()
+                        {
+                            match prop_ident_and_offset.propertyIdentifier {
+                                PropertyIdentifier::Normal(prop_id) => {
+                                    if prop_id == *dict_def_prop_id {
+                                        dict_item_to_rgid_n_offset_index
+                                            .push((name.clone(), index - 1)); // Short term fix
+                                    }
+                                }
+                                _ => {}
+                            };
+                        }
+                    }
+
+                    for (name, index) in dict_item_to_rgid_n_offset_index {
+                        let property_type = &property_set.properties[index];
+                        let property_type = match property_type {
+                            PropertyType::NormalPropertyType(property_type) => property_type,
+                            _ => {
+                                panic!("Bad property type identifer in DocumentSummaryInfoStream")
+                            }
+                        };
+                        custom_property_dict.push((name, property_type.clone()));
+                    }
+                    custom_property_dict
+                }
+                _ => {
+                    panic!("Bad property type identifer in DocumentSummaryInfoStream")
+                }
+            },
+            None => Vec::new(),
+        };
+
+        Ok(DocumentSummaryInfoStream {
+            codepage,
+            category,
+            presformat,
+            bytecount,
+            linecount,
+            paracount,
+            slidecount,
+            notecount,
+            hiddencount,
+            mmclipcount,
+            scale,
+            headingpair,
+            docparts,
+            manager,
+            company,
+            linksdirty,
+            chars_with_spaces,
+            sharedoc,
+            linkbase,
+            hlinks,
+            hlinkschanged,
+            version,
+            digsig,
+            content_type,
+            content_status,
+            language,
+            doc_version,
+            custom_property_dict,
+        })
     }
 }
 
@@ -601,6 +783,14 @@ impl FromReader for SummaryInformation {
             .iter()
             .zip(property_set_stream.propertySets[0].properties.iter())
         {
+            let property_type = match property_type {
+                PropertyType::NormalPropertyType(property_type) => property_type,
+                _ => {
+                    // This should not happen
+                    continue;
+                }
+            };
+
             let something = &prop_ident_and_offset.propertyIdentifier;
             match something {
                 PropertyIdentifier::Normal(prop_id) => match prop_id {
@@ -698,13 +888,11 @@ impl FromReader for PropertySetStream {
         let mut property_sets =
             Vec::with_capacity(property_stream_set_start.num_property_sets as usize);
 
-        for _ in 0..property_stream_set_start.num_property_sets {
+        for id_n_offset in &property_stream_set_start.rgIdOffset {
             // new reader that has a base (start) at the section offset
-            let mut subreader = SubReader::new(
-                reader,
-                property_stream_set_start.rgIdOffset[0].sectionOffset as u64,
-            )?;
-            let property_set = PropertySet::<PropertyType>::from_reader(&mut subreader)?;
+            let offset = id_n_offset.sectionOffset as u64;
+            let mut subreader = SubReader::new(reader, offset)?;
+            let property_set = PropertySet::from_reader(&mut subreader)?;
 
             property_sets.push(property_set);
         }
@@ -716,7 +904,7 @@ impl FromReader for PropertySetStream {
     }
 }
 
-impl<T: FromReader> FromReader for PropertySet<T> {
+impl FromReader for PropertySet {
     #[allow(non_snake_case)]
     fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
         let cb = reader.read_u32::<LittleEndian>()?;
@@ -742,10 +930,31 @@ impl<T: FromReader> FromReader for PropertySet<T> {
             let offset = val.propertyOffset as u64;
             reader.seek(SeekFrom::Start(offset))?;
 
-            let property = T::from_reader(reader)?;
-
-            // Ignoring untill make a reader that can handle this mess
-            _properties.push(property);
+            match val.propertyIdentifier {
+                PropertyIdentifier::Normal(_) => {
+                    let normal = NormalPropertyType::from_reader(reader)?;
+                    _properties.push(PropertyType::NormalPropertyType(normal));
+                }
+                PropertyIdentifier::DictionaryProperty => {
+                    let dictionary = DictionaryPropertyType::from_reader(reader)?;
+                    _properties.push(PropertyType::DictionaryPropertyType(dictionary));
+                }
+                PropertyIdentifier::CodePageProperty => {
+                    // Not implemented
+                    // let property = T::from_reader(reader)?;
+                    // _properties.push(property);
+                }
+                PropertyIdentifier::LocaleProperty => {
+                    // Not implemented
+                    // let property = T::from_reader(reader)?;
+                    // _properties.push(property);
+                }
+                PropertyIdentifier::BehaviourProperty => {
+                    // Not implemented
+                    // let property = T::from_reader(reader)?;
+                    // _properties.push(property);
+                }
+            }
         }
 
         Ok(PropertySet {
@@ -757,20 +966,30 @@ impl<T: FromReader> FromReader for PropertySet<T> {
     }
 }
 
-impl FromReader for PropertyType {
+impl FromReader for NormalPropertyType {
     fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
         let type_val = reader.read_u16::<LittleEndian>()?;
         let _padding = reader.read_u16::<LittleEndian>()?;
 
         match type_val {
-            0x0000 => Ok(PropertyType::VT_EMPTY),
-            0x0001 => Ok(PropertyType::VT_NULL),
-            0x0002 => Ok(PropertyType::VT_I2(reader.read_i16::<LittleEndian>()?)),
-            0x0003 => Ok(PropertyType::VT_I4(reader.read_i32::<LittleEndian>()?)),
-            0x0004 => Ok(PropertyType::VT_R4(reader.read_f32::<LittleEndian>()?)),
-            0x0005 => Ok(PropertyType::VT_R8(reader.read_f64::<LittleEndian>()?)),
-            0x0006 => Ok(PropertyType::VT_CY(reader.read_i64::<LittleEndian>()?)),
-            0x0007 => Ok(PropertyType::VT_DATE(reader.read_f64::<BigEndian>()?)),
+            0x0000 => Ok(NormalPropertyType::VT_EMPTY),
+            0x0001 => Ok(NormalPropertyType::VT_NULL),
+            0x0002 => Ok(NormalPropertyType::VT_I2(
+                reader.read_i16::<LittleEndian>()?,
+            )),
+            0x0003 => Ok(NormalPropertyType::VT_I4(
+                reader.read_i32::<LittleEndian>()?,
+            )),
+            0x0004 => Ok(NormalPropertyType::VT_R4(
+                reader.read_f32::<LittleEndian>()?,
+            )),
+            0x0005 => Ok(NormalPropertyType::VT_R8(
+                reader.read_f64::<LittleEndian>()?,
+            )),
+            0x0006 => Ok(NormalPropertyType::VT_CY(
+                reader.read_i64::<LittleEndian>()?,
+            )),
+            0x0007 => Ok(NormalPropertyType::VT_DATE(reader.read_f64::<BigEndian>()?)),
             0x0008 => {
                 // this function is incorrect, does not check the value of CP_WINUNICODE (0x04B0) to see what this is
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -780,27 +999,47 @@ impl FromReader for PropertyType {
                 for i in 0..length as usize / 2 {
                     u16_buffer[i] = u16::from_be_bytes([buffer[i * 2], buffer[i * 2 + 1]]);
                 }
-                Ok(PropertyType::VT_BSTR(
+                Ok(NormalPropertyType::VT_BSTR(
                     String::from_utf16(&u16_buffer).unwrap(),
                 ))
             }
-            0x000A => Ok(PropertyType::VT_ERROR(reader.read_u32::<LittleEndian>()?)),
-            0x000B => Ok(PropertyType::VT_BOOL(reader.read_u16::<BigEndian>()? != 0)),
-            0x000E => Ok(PropertyType::VT_DECIMAL(reader.read_f64::<LittleEndian>()?)), // not properly interpreted
-            0x0010 => Ok(PropertyType::VT_I1(reader.read_i8()?)),
-            0x0011 => Ok(PropertyType::VT_UI1(reader.read_u8()?)),
-            0x0012 => Ok(PropertyType::VT_UI2(reader.read_u16::<LittleEndian>()?)),
-            0x0013 => Ok(PropertyType::VT_UI4(reader.read_u32::<LittleEndian>()?)),
-            0x0014 => Ok(PropertyType::VT_I8(reader.read_i64::<LittleEndian>()?)),
-            0x0015 => Ok(PropertyType::VT_UI8(reader.read_u64::<LittleEndian>()?)),
-            0x0016 => Ok(PropertyType::VT_INT(reader.read_i32::<LittleEndian>()?)),
-            0x0017 => Ok(PropertyType::VT_UINT(reader.read_u32::<LittleEndian>()?)),
+            0x000A => Ok(NormalPropertyType::VT_ERROR(
+                reader.read_u32::<LittleEndian>()?,
+            )),
+            0x000B => Ok(NormalPropertyType::VT_BOOL(
+                reader.read_u16::<BigEndian>()? != 0,
+            )),
+            0x000E => Ok(NormalPropertyType::VT_DECIMAL(
+                reader.read_f64::<LittleEndian>()?,
+            )), // not properly interpreted
+            0x0010 => Ok(NormalPropertyType::VT_I1(reader.read_i8()?)),
+            0x0011 => Ok(NormalPropertyType::VT_UI1(reader.read_u8()?)),
+            0x0012 => Ok(NormalPropertyType::VT_UI2(
+                reader.read_u16::<LittleEndian>()?,
+            )),
+            0x0013 => Ok(NormalPropertyType::VT_UI4(
+                reader.read_u32::<LittleEndian>()?,
+            )),
+            0x0014 => Ok(NormalPropertyType::VT_I8(
+                reader.read_i64::<LittleEndian>()?,
+            )),
+            0x0015 => Ok(NormalPropertyType::VT_UI8(
+                reader.read_u64::<LittleEndian>()?,
+            )),
+            0x0016 => Ok(NormalPropertyType::VT_INT(
+                reader.read_i32::<LittleEndian>()?,
+            )),
+            0x0017 => Ok(NormalPropertyType::VT_UINT(
+                reader.read_u32::<LittleEndian>()?,
+            )),
             0x001E => {
                 // this function is incorrect, does not check the value of CP_WINUNICODE (0x04B0) to see what this is
                 let length = reader.read_u32::<LittleEndian>()?;
                 let mut buffer = vec![0; length as usize];
                 reader.read_exact(&mut buffer)?;
-                Ok(PropertyType::VT_LPSTR(String::from_utf8(buffer).unwrap()))
+                Ok(NormalPropertyType::VT_LPSTR(
+                    String::from_utf8(buffer).unwrap(),
+                ))
             }
             0x001F => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -810,38 +1049,44 @@ impl FromReader for PropertyType {
                 for i in 0..length as usize / 2 {
                     u16_buffer[i] = u16::from_be_bytes([buffer[i * 2], buffer[i * 2 + 1]]);
                 }
-                Ok(PropertyType::VT_LPWSTR(
+                Ok(NormalPropertyType::VT_LPWSTR(
                     String::from_utf16(&u16_buffer).unwrap(),
                 ))
             }
-            0x0040 => Ok(PropertyType::VT_FILETIME(
+            0x0040 => Ok(NormalPropertyType::VT_FILETIME(
                 reader.read_u64::<LittleEndian>()?,
             )),
             0x0041 => {
                 let length = reader.read_u32::<LittleEndian>()?;
                 let mut buffer = vec![0; length as usize];
                 reader.read_exact(&mut buffer)?;
-                Ok(PropertyType::VT_BLOB(buffer))
+                Ok(NormalPropertyType::VT_BLOB(buffer))
             }
-            0x0042 => Ok(PropertyType::VT_STREAM(reader.read_u64::<LittleEndian>()?)), // Not properly interpreted
-            0x0043 => Ok(PropertyType::VT_STORAGE(reader.read_u64::<LittleEndian>()?)), // Not properly interpreted
-            0x0044 => Ok(PropertyType::VT_STREAMED_OBJECT(
+            0x0042 => Ok(NormalPropertyType::VT_STREAM(
                 reader.read_u64::<LittleEndian>()?,
             )), // Not properly interpreted
-            0x0045 => Ok(PropertyType::VT_STORED_OBJECT(
+            0x0043 => Ok(NormalPropertyType::VT_STORAGE(
+                reader.read_u64::<LittleEndian>()?,
+            )), // Not properly interpreted
+            0x0044 => Ok(NormalPropertyType::VT_STREAMED_OBJECT(
+                reader.read_u64::<LittleEndian>()?,
+            )), // Not properly interpreted
+            0x0045 => Ok(NormalPropertyType::VT_STORED_OBJECT(
                 reader.read_u64::<LittleEndian>()?,
             )), // Not properly interpreted
             0x0046 => {
                 let length = reader.read_u32::<LittleEndian>()?;
                 let mut buffer = vec![0; length as usize];
                 reader.read_exact(&mut buffer)?;
-                Ok(PropertyType::VT_BLOB_OBJECT(buffer))
+                Ok(NormalPropertyType::VT_BLOB_OBJECT(buffer))
             }
-            0x0047 => Ok(PropertyType::VT_CF(reader.read_u32::<LittleEndian>()?)), // Not properly interpreted
+            0x0047 => Ok(NormalPropertyType::VT_CF(
+                reader.read_u32::<LittleEndian>()?,
+            )), // Not properly interpreted
             0x0048 => {
                 let mut buffer = [0; 16];
                 reader.read_exact(&mut buffer)?;
-                Ok(PropertyType::VT_CLSID(buffer))
+                Ok(NormalPropertyType::VT_CLSID(buffer))
             }
             0x1002 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -851,7 +1096,7 @@ impl FromReader for PropertyType {
                 for i in 0..length as usize / 2 {
                     values.push(i16::from_le_bytes([buffer[i * 2], buffer[i * 2 + 1]]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_I2(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_I2(values))
             }
             0x1003 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -866,7 +1111,7 @@ impl FromReader for PropertyType {
                         buffer[i * 4 + 3],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_I4(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_I4(values))
             }
             0x1004 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -881,7 +1126,7 @@ impl FromReader for PropertyType {
                         buffer[i * 4 + 3],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_R4(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_R4(values))
             }
             0x1005 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -900,7 +1145,7 @@ impl FromReader for PropertyType {
                         buffer[i * 8 + 7],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_R8(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_R8(values))
             }
             0x1006 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -919,7 +1164,7 @@ impl FromReader for PropertyType {
                         buffer[i * 8 + 7],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_CY(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_CY(values))
             }
             0x100B => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -929,16 +1174,16 @@ impl FromReader for PropertyType {
                 for i in 0..length as usize / 2 {
                     values.push(u16::from_le_bytes([buffer[i * 2], buffer[i * 2 + 1]]) != 0);
                 }
-                Ok(PropertyType::VT_VECTOR_VT_BOOL(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_BOOL(values))
             }
             0x100C => {
                 let length = reader.read_u32::<LittleEndian>()?;
                 let mut values = Vec::with_capacity(length as usize);
                 for _ in 0..length as usize {
-                    let property_val = PropertyType::from_reader(reader)?;
+                    let property_val = NormalPropertyType::from_reader(reader)?;
                     values.push(property_val);
                 }
-                Ok(PropertyType::VT_VECTOR_VT_VARIANT(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_VARIANT(values))
             }
             0x1010 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -948,7 +1193,7 @@ impl FromReader for PropertyType {
                 for i in 0..length as usize {
                     values.push(buffer[i] as i8);
                 }
-                Ok(PropertyType::VT_VECTOR_VT_I1(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_I1(values))
             }
             0x1011 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -958,7 +1203,7 @@ impl FromReader for PropertyType {
                 for i in 0..length as usize {
                     values.push(buffer[i]);
                 }
-                Ok(PropertyType::VT_VECTOR_VT_UI1(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_UI1(values))
             }
             0x1012 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -969,7 +1214,7 @@ impl FromReader for PropertyType {
                     let value = u16::from_le_bytes([buffer[i * 2], buffer[i * 2 + 1]]);
                     values.push(value);
                 }
-                Ok(PropertyType::VT_VECTOR_VT_UI2(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_UI2(values))
             }
             0x1013 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -984,7 +1229,7 @@ impl FromReader for PropertyType {
                         buffer[i * 4 + 3],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_UI4(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_UI4(values))
             }
             0x1014 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -1003,7 +1248,7 @@ impl FromReader for PropertyType {
                         buffer[i * 8 + 7],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_I8(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_I8(values))
             }
             0x1015 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -1022,11 +1267,25 @@ impl FromReader for PropertyType {
                         buffer[i * 8 + 7],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_UI8(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_UI8(values))
             }
             0x101E => {
                 let _length = reader.read_u32::<LittleEndian>()?;
-                unimplemented!()
+
+                let mut strings = Vec::with_capacity(_length as usize);
+                // reading a vector of VT_LPSTRs
+                for _ in 0.._length {
+                    let length = reader.read_u32::<LittleEndian>()?;
+                    let mut buffer = vec![0; length as usize];
+                    reader.read_exact(&mut buffer)?;
+                    let mut u16_buffer = vec![0; length as usize / 2];
+                    for i in 0..length as usize / 2 {
+                        u16_buffer[i] = u16::from_be_bytes([buffer[i * 2], buffer[i * 2 + 1]]);
+                    }
+                    strings.push(String::from_utf16(&u16_buffer).unwrap());
+                }
+
+                Ok(NormalPropertyType::VT_VECTOR_VT_LPSTR(strings))
             }
             0x101F => {
                 let num_strings = reader.read_u32::<LittleEndian>()?;
@@ -1037,7 +1296,7 @@ impl FromReader for PropertyType {
                     reader.read_exact(&mut buffer)?;
                     values.push(String::from_utf8(buffer).unwrap());
                 }
-                Ok(PropertyType::VT_VECTOR_VT_LPWSTR(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_LPWSTR(values))
             }
             0x1040 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -1056,7 +1315,7 @@ impl FromReader for PropertyType {
                         buffer[i * 8 + 7],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_FILETIME(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_FILETIME(values))
             }
             0x1047 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -1071,7 +1330,7 @@ impl FromReader for PropertyType {
                         buffer[i * 4 + 3],
                     ]));
                 }
-                Ok(PropertyType::VT_VECTOR_VT_CF(values))
+                Ok(NormalPropertyType::VT_VECTOR_VT_CF(values))
             }
             0x1048 => {
                 let length = reader.read_u32::<LittleEndian>()?;
@@ -1081,10 +1340,35 @@ impl FromReader for PropertyType {
                     reader.read_exact(&mut buffer)?;
                     clsids.push(buffer);
                 }
-                Ok(PropertyType::VT_VECTOR_VT_CLSID(clsids))
+                Ok(NormalPropertyType::VT_VECTOR_VT_CLSID(clsids))
             }
-            _ => Ok(PropertyType::Unknown(type_val)),
+            _ => Ok(NormalPropertyType::Unknown(type_val)),
         }
+    }
+}
+
+impl FromReader for DictionaryPropertyType {
+    fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
+        let c_entries = reader.read_u32::<LittleEndian>()?;
+
+        let mut dict_map: Vec<(String, u32)> = Vec::with_capacity(c_entries as usize);
+
+        for _ in 0..c_entries {
+            // this should really depend on the CodePage property
+            let property_id = reader.read_u32::<LittleEndian>()?;
+
+            let length = reader.read_u32::<LittleEndian>()?;
+
+            let mut buffer = vec![0; length as usize];
+            reader.read_exact(&mut buffer)?;
+
+            let key = String::from_utf8(buffer).unwrap();
+            dict_map.push((key, property_id));
+        }
+
+        Ok(DictionaryPropertyType {
+            dictionary: dict_map,
+        })
     }
 }
 
@@ -1178,5 +1462,16 @@ impl PropertyIdentifier {
             0x80000003 => PropertyIdentifier::BehaviourProperty,
             _ => panic!("Invalid property Identifyer used"),
         }
+    }
+}
+
+impl DictionaryPropertyType {
+    pub fn get_name(&self, id: u32) -> Option<&String> {
+        for (name, prop_id) in &self.dictionary {
+            if *prop_id == id {
+                return Some(name);
+            }
+        }
+        None
     }
 }

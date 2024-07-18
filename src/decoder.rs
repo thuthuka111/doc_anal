@@ -24,6 +24,14 @@ impl WordDocument {
         let mut cfb = CompoundFile::open(file)?;
         let mut word_doc_stream = cfb.open_stream("WordDocument")?;
 
+        let document_summary_information_stream = {
+            // More work to be done here for the second part of the DocumentSummaryInfoStream
+            let mut doc_sum_info_stream = cfb.open_stream("\x05DocumentSummaryInformation")?;
+
+            let doc_sum_info = DocumentSummaryInfoStream::from_reader(&mut doc_sum_info_stream)?;
+            doc_sum_info
+        };
+
         let summary_information = {
             let mut summary_info_stream = cfb.open_stream("\x05SummaryInformation")?;
 
@@ -64,15 +72,7 @@ impl WordDocument {
 
             let mut _summary_info_stream = Cursor::new(data);
             let summary_info = SummaryInformation::from_reader(&mut summary_info_stream)?;
-            println!("{:#?}", summary_info);
             summary_info
-        };
-
-        let document_summary_information_stream = {
-            let mut doc_sum_info_stream = cfb.open_stream("\x05DocumentSummaryInformation")?;
-
-            let doc_sum_info = DocumentSummaryInfoStream::from_reader(&mut doc_sum_info_stream)?;
-            doc_sum_info
         };
 
         let fib = Fib::from_reader(&mut word_doc_stream)?;
