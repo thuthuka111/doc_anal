@@ -19,10 +19,13 @@ fn main() -> io::Result<()> {
     let file = File::open(file_path)?;
     let word_doc = WordDocument::read_file(file)?;
 
-    let fib = &word_doc.fib;
-    println!("{:?}", fib);
+    // let something = word_doc.to_json();
+    // println!("{}", something.pretty(2));
 
-    word_doc.print_cfb_structure();
+    // let fib = &word_doc.fib;
+    // println!("{:?}", fib);
+
+    // word_doc.print_cfb_structure();
     Ok(())
 }
 

@@ -1,7 +1,9 @@
 use cfb::CompoundFile;
+use json::JsonValue;
 use std::{
     fs::File,
     io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom},
+    vec,
 };
 
 use crate::model::*;
@@ -25,7 +27,6 @@ impl WordDocument {
         let mut word_doc_stream = cfb.open_stream("WordDocument")?;
 
         let document_summary_information_stream = {
-            // More work to be done here for the second part of the DocumentSummaryInfoStream
             let mut doc_sum_info_stream = cfb.open_stream("\x05DocumentSummaryInformation")?;
 
             let doc_sum_info = DocumentSummaryInfoStream::from_reader(&mut doc_sum_info_stream)?;
@@ -94,7 +95,7 @@ impl WordDocument {
 
             let mut complex_buff = Cursor::new(complex_buff);
             let complex_part = (vec![()], PLCF::<PCD>::from_reader(&mut complex_buff)?);
-            println!("{:#?}", complex_part.1);
+            // println!("{:#?}", complex_part.1);
 
             complex_part
         };
@@ -117,6 +118,19 @@ impl WordDocument {
             stylesheet
         };
 
+        // Read the List Tables
+        // let list_tables = {
+        //     let mut list_table_buffer = vec![0; fib.lcbPlcfLst as usize];
+        //     table_stream.seek(SeekFrom::Start(fib.fcPlcfLst as u64))?;
+        //     table_stream.read_exact(&mut list_table_buffer)?;
+
+        //     let mut list_table_buffer = BufReader::new(Cursor::new(list_table_buffer));
+        //     // Dont do this witha `from_reader`
+        //     let list_tables = LSTs::from_reader(&mut list_table_buffer)?;
+
+        //     list_tables
+        // };
+
         // Read the PlcfbtePapx
         {
             let mut plcfbte_papx_buffer = vec![0; fib.lcbPlcfbtePapx as usize];
@@ -135,6 +149,13 @@ impl WordDocument {
             document_summary_information_stream,
             summary_information,
         })
+    }
+
+    pub fn to_json(&self) -> JsonValue {
+        let fib = Structure::from("Fib", &self.fib);
+        let stylesheet = Structure::from("StyleSheet", &self.stylesheet);
+
+        JsonValue::from(vec![fib, stylesheet])
     }
 
     pub fn print_cfb_structure(&self) {

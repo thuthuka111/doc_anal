@@ -1,5 +1,9 @@
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use json::{object, JsonValue};
+use serde_derive::Serialize;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
+use struct_iterable::Iterable;
+use ts_rs::TS;
 
 use crate::subreader::SubReader;
 
@@ -15,12 +19,111 @@ pub trait FromReader: Sized {
     fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self>;
 }
 
+/// A Trait that states that 'Self' can be made into a `Structure`
+pub trait ToStructure {
+    /// A function for annotation name of fields in the structure with their description
+    fn descriptions() -> JsonValue;
+    /// A function which processes the struct and returns a JsonValue of the name and value of the fields
+    fn structure_items(&self) -> Vec<StructureItem>;
+    /// A function used to make the substructures, if any, of the struct
+    fn substructures(&self) -> Option<Vec<Structure>>;
+}
+
+// pub trait ToStructureItems {
+//     fn structure_items(&self) -> Vec<StructureItem>;
+// }
+
 // region: Structs
+
+/// A Struct that is used for storing the information of a structure
+/// within a document
+#[derive(Debug, TS)]
+#[ts(export)]
+pub struct Structure {
+    pub name: String,
+    pub structure: Vec<StructureItem>,
+    pub substructs: Option<Vec<Structure>>,
+}
+
+/// A Struct that is used for storing the information of a field within a structure
+#[derive(Debug, TS)]
+pub struct StructureItem {
+    pub name: String,
+    pub value: String,
+    pub description: Option<String>,
+}
+
+impl Structure {
+    pub fn from<T: ToStructure>(name: &str, item: &T) -> Self {
+        Structure {
+            name: name.to_string(),
+            structure: item.structure_items(),
+            substructs: item.substructures(),
+        }
+    }
+}
+
+impl From<&Structure> for JsonValue {
+    fn from(structure: &Structure) -> JsonValue {
+        let mut items_structure = vec![];
+        for item in &structure.structure {
+            let mut item_json = object! {};
+            item_json["name"] = item.name.clone().into();
+            item_json["value"] = item.value.clone().into();
+            if let Some(description) = &item.description {
+                item_json["description"] = description.clone().into();
+            }
+            items_structure.push(item_json);
+        }
+
+        let substructs = if let Some(substructs) = &structure.substructs {
+            let mut substructs_structure: Vec<&Structure> = vec![];
+            for substruct in substructs {
+                substructs_structure.push(substruct.into());
+            }
+            Some(substructs_structure)
+        } else {
+            None
+        };
+
+        object! {
+            name: structure.name.clone(),
+            structure: items_structure,
+            substructs: substructs,
+        }
+    }
+}
+
+impl Into<JsonValue> for Structure {
+    fn into(self) -> JsonValue {
+        JsonValue::from(&self)
+    }
+}
+
+// fn attach_descriptions<T>(object: &mut JsonValue, item: &T, descriptions: &JsonValue)
+// where
+//     T: Iterable + Serialize + ToStructure,
+// {
+//     // Needs to change this to some structure
+//     let self_json = json::parse(&serde_json::to_string(&item).unwrap()).unwrap();
+
+//     for (field_name, _) in item.iter() {
+//         let the_val = self_json[field_name].clone();
+
+//         if descriptions.has_key(&field_name) {
+//             object[field_name] =
+//                 object! { val: the_val, description: descriptions[field_name].clone() };
+//         } else {
+//             object[field_name] = object! { val: the_val, description: "" };
+//         }
+//     }
+// }
 
 #[allow(non_snake_case)]
 pub struct _STSHI {
     // Style sheet information strucure
     cstd: u16,
+
     cbSTDBaseInFile: u16,
     fStdStylenamesWritten: u16,
     stiMaxWhenSaved: u16,
@@ -32,7 +135,7 @@ pub struct _STSHI {
 }
 
 #[allow(non_snake_case, unused)]
-#[derive(Debug)]
+#[derive(Debug, Iterable, Serialize)]
 pub struct Fib {
     pub wIdent: u16,
     pub nFib: u16,
@@ -59,11 +162,66 @@ pub struct Fib {
     pub fcClx: i32,
     /// Length of the fcClx
     pub lcbClx: i32,
+    /// Offset in Table Stream of list formation information
+    pub fcPlcfLst: i32,
+    /// Length of the fcPlcffLst
+    pub lcbPlcfLst: u32,
     // Add other FIB fields as needed
+}
+
+/// List Tables
+#[allow(non_snake_case, unused)]
+#[derive(Debug)]
+pub struct LSTs {
+    pub num_LSTs: u8,
+    pub LSTs: Vec<LST>,
+}
+
+// contains formatting propertues which apply to the entire list
+#[allow(non_snake_case, unused)]
+#[derive(Debug)]
+pub struct LSTF {
+    pub lsid: i32,
+    pub tplc: i32,
+    pub rgistd: [u16; 9],
+    pub flagfield: u8,
+    pub compat_flags: u8,
 }
 
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
+pub struct LVLF {
+    pub iStartAt: i32,
+    pub nfc: u8,
+    pub jc: u8,
+    pub fLegal: bool,
+    pub fNoRestart: bool,
+    pub fPrev: bool,
+    pub fPrevSpace: bool,
+    pub fWord6: bool,
+    pub rgbxchNums: [u8; 9],
+    pub ixchFollow: u8,
+    pub dxaSpace: i32,
+    pub dxaIndent: i32,
+    pub cbGrpprlChpx: u8,
+    pub cbGrpprlPapx: u8,
+    pub ilvlRestartLim: u8,
+    pub grfhic: u8,
+}
+
+#[derive(Debug)]
+pub struct LVL {}
+
+/// List Table
+#[allow(non_snake_case, unused)]
+#[derive(Debug)]
+pub struct LST {
+    lstf: LSTF,
+    level_styles: Vec<LVL>,
+}
+
+#[allow(non_snake_case, unused)]
+#[derive(Debug, Serialize, Iterable)]
 pub struct STD {
     /// Invariant style identifier
     sti: u16,
@@ -135,7 +293,7 @@ pub struct PCD {
     pub prm: u16,
 }
 #[allow(non_snake_case, unused)]
-#[derive(Debug)]
+#[derive(Debug, Iterable, Serialize)]
 pub struct SHSHI {
     pub cstd: u16,
     pub cbSTDBaseInFile: u16,
@@ -152,6 +310,119 @@ pub struct SHSHI {
     pub styles: Vec<STD>,
 }
 
+impl ToStructure for Fib {
+    fn descriptions() -> JsonValue {
+        object! {
+            fcMin: "The Min value of something",
+        }
+    }
+
+    fn structure_items(&self) -> Vec<StructureItem> {
+        let descriptions = Self::descriptions();
+        let self_json = json::parse(&serde_json::to_string(&self).unwrap()).unwrap();
+        let mut structure_items = vec![];
+        for (field_name, _) in self.iter() {
+            let field_val = self_json[field_name].to_string();
+            let description = if descriptions.has_key(&field_name) {
+                Some(descriptions[field_name].clone().to_string())
+            } else {
+                None
+            };
+
+            structure_items.push(StructureItem {
+                name: field_name.to_string(),
+                value: field_val,
+                description,
+            });
+        }
+
+        structure_items
+    }
+
+    fn substructures(&self) -> Option<Vec<Structure>> {
+        None
+    }
+}
+
+impl ToStructure for SHSHI {
+    fn descriptions() -> JsonValue {
+        object! {}
+    }
+
+    fn structure_items(&self) -> Vec<StructureItem> {
+        let descriptions = Self::descriptions();
+        let self_json = json::parse(&serde_json::to_string(&self).unwrap()).unwrap();
+
+        let mut structure_items = vec![];
+        for (field_name, _) in self.iter() {
+            // Ignoreing Styles as it is a substructure
+            if field_name == "styles" {
+                continue;
+            }
+
+            let field_val = self_json[field_name].to_string();
+            let description = if descriptions.has_key(&field_name) {
+                Some(descriptions[field_name].clone().to_string())
+            } else {
+                None
+            };
+
+            structure_items.push(StructureItem {
+                name: field_name.to_string(),
+                value: field_val,
+                description,
+            });
+        }
+
+        structure_items
+
+    }
+
+    fn substructures(&self) -> Option<Vec<Structure>> {
+        let mut substructures = vec![];
+
+        for style in &self.styles {
+            let style_structure = Structure::from(&style.xstzName, style);
+            substructures.push(style_structure);
+        }
+
+        Some(substructures)
+    }
+}
+
+impl ToStructure for STD {
+    fn descriptions() -> JsonValue {
+        object! {
+            sti: "The style identifier",
+        }
+    }
+
+    fn structure_items(&self) -> Vec<StructureItem> {
+        let descriptions = Self::descriptions();
+        let self_json = json::parse(&serde_json::to_string(&self).unwrap()).unwrap();
+        let mut structure_items = vec![];
+        for (field_name, _) in self.iter() {
+            let field_val = self_json[field_name].to_string();
+            let description = if descriptions.has_key(&field_name) {
+                Some(descriptions[field_name].clone().to_string())
+            } else {
+                None
+            };
+
+            structure_items.push(StructureItem {
+                name: field_name.to_string(),
+                value: field_val,
+                description,
+            });
+        }
+
+        structure_items
+    }
+
+    fn substructures(&self) -> Option<Vec<Structure>> {
+        None
+    }
+}
 /// Represents the piece table (plcfpcd)
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
@@ -404,6 +675,10 @@ impl FromReader for Fib {
         let fcClx = reader.read_i32::<LittleEndian>()?;
         let lcbClx = reader.read_i32::<LittleEndian>()?;
 
+        reader.seek(SeekFrom::Start(0x02E2))?;
+        let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
+
         Ok(Fib {
             wIdent,
             nFib,
@@ -425,6 +700,8 @@ impl FromReader for Fib {
             lcbStshf,
             fcClx,
             lcbClx,
+            fcPlcfLst,
+            lcbPlcfLst,
         })
     }
 }
@@ -450,7 +727,7 @@ impl FromReader for SHSHI {
         // Reading in the styles
         let mut styles = Vec::with_capacity(cstd as usize);
 
-        println!("Number of styles: {}", cstd);
+        // println!("Number of styles: {}", cstd);
 
         for _ in 0..cstd {
             // size of following STD structure
@@ -464,7 +741,7 @@ impl FromReader for SHSHI {
 
             let stylesheet_std = STD::from_reader(&mut std_buffer)?;
 
-            println!("{:?}\n", stylesheet_std);
+            // println!("{:?}\n", stylesheet_std);
             let _remaining_buff = std_buffer.fill_buf()?;
             // println!("Remaining buffer: {}", hex::encode_upper(remaining_buff));
             // assert!(remaining_buff.len() == 0, "Buffer not fully read");
@@ -1402,6 +1679,108 @@ impl<T: FromCStruct> PLCF<T> {
         }
 
         PLCF { rgfc, rgstruct }
+    }
+}
+
+impl FromReader for LSTs {
+    fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
+        // numbers of LST structures
+        let num_ltss = reader.read_u16::<LittleEndian>()?;
+        println!("Number of LTS's: {}", num_ltss);
+
+        let bytes_left = reader.bytes().count() as i64;
+        println!("Bytes at start: {}", bytes_left);
+        let _ = reader.seek(SeekFrom::Current(-bytes_left))?;
+
+        // make the LSTF
+        let mut lsts = Vec::with_capacity(num_ltss.into());
+        for _ in 0..num_ltss {
+            #[allow(non_snake_case, unused)]
+            let LSTF = {
+                let lsid = reader.read_i32::<LittleEndian>().unwrap();
+                let tplc = reader.read_i32::<LittleEndian>().unwrap();
+                // 18 bytes (rgstid[9])
+                let mut rgistd_buff = [0 as u8; 18];
+                let _ = reader.read(&mut rgistd_buff).unwrap();
+                let mut rgistd = [0 as u16; 9];
+                for i in 0..9 {
+                    rgistd[i] = u16::from_le_bytes([rgistd_buff[2 * i], rgistd_buff[2 * i + 1]]);
+                }
+
+                let mut bitfield_buff = reader.read_u8()?;
+
+                let html_compat_flags_bitfield = reader.read_u8()?;
+
+                LSTF {
+                    lsid,
+                    tplc,
+                    rgistd,
+                    flagfield: bitfield_buff,
+                    compat_flags: html_compat_flags_bitfield,
+                }
+            };
+            println!("{:#?}", LSTF);
+
+            lsts.push(LSTF);
+        }
+
+        let bytes_left = reader.bytes().count() as i64;
+        println!("Bytes after reading first LSTF: {}", bytes_left);
+        let _ = reader.seek(SeekFrom::Current(-bytes_left))?;
+
+        // make the LVLF
+        #[allow(non_snake_case, unused)]
+        let LVLF = {
+            let iStartAt = reader.read_i32::<LittleEndian>().unwrap();
+            let nfc = reader.read_u8().unwrap();
+
+            let bitfield = reader.read_u16::<BigEndian>().unwrap();
+
+            let jc = ((bitfield & 0xC0) >> 6) as u8;
+            let fLegal = (bitfield & 0x20) == 0x20;
+            let fNoRestart = (bitfield & 0x10) == 0x10;
+            let fPrev = (bitfield & 0x08) == 0x08;
+            let fPrevSpace = (bitfield & 0x04) == 0x04;
+            let fWord6 = (bitfield & 0x02) == 0x02;
+
+            let mut rgbxchNums = [0; 9];
+            reader.read_exact(&mut rgbxchNums).unwrap();
+
+            let ixchFollow = reader.read_u8().unwrap();
+            let dxaSpace = reader.read_i32::<LittleEndian>().unwrap();
+            let dxaIndent = reader.read_i32::<LittleEndian>().unwrap();
+            let cbGrpprlChpx = reader.read_u8().unwrap();
+            let cbGrpprlPapx = reader.read_u8().unwrap();
+
+            let ilvlRestartLim = reader.read_u8().unwrap();
+            let grfhic = reader.read_u8().unwrap();
+
+            LVLF {
+                iStartAt,
+                nfc,
+                jc,
+                fLegal,
+                fNoRestart,
+                fPrev,
+                fPrevSpace,
+                fWord6,
+                rgbxchNums,
+                ixchFollow,
+                dxaSpace,
+                dxaIndent,
+                cbGrpprlChpx,
+                cbGrpprlPapx,
+                ilvlRestartLim,
+                grfhic,
+            }
+        };
+
+        // calculate and pring number of remaining bytes in buffer
+        let remaining_bytes = reader.bytes().count();
+        println!("Remaining bytes in buffer: {}", remaining_bytes);
+
+        println!("{:#?}", LVLF);
+        todo!();
     }
 }
 
