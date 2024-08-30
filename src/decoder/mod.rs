@@ -1,12 +1,18 @@
 use cfb::CompoundFile;
+use from_reader::FromReader;
 use json::JsonValue;
+pub use model::*;
 use std::{
     fs::File,
     io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom},
     vec,
 };
 
-use crate::model::*;
+
+mod from_c_struct;
+mod from_reader;
+mod model;
+mod to_structure;
 
 #[allow(unused)]
 #[derive(Debug)]

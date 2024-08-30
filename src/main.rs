@@ -7,7 +7,6 @@ use std::{
 };
 
 mod decoder;
-mod model;
 mod subreader;
 
 fn main() -> io::Result<()> {
