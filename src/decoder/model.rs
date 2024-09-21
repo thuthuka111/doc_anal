@@ -1,3 +1,5 @@
+use std::io::{Read, Seek, SeekFrom};
+
 use json::{object, JsonValue};
 use serde_derive::Serialize;
 use struct_iterable::Iterable;
@@ -8,7 +10,7 @@ use super::{from_c_struct::FromCStruct, to_structure::ToStructure};
 // region: Structs
 
 /// A Struct that is used for storing the information of a structure
-/// within a document
+/// within a document for the logical analysis
 #[derive(Debug, TS)]
 #[ts(export)]
 pub struct Structure {
@@ -72,24 +74,71 @@ impl Into<JsonValue> for Structure {
     }
 }
 
-// fn attach_descriptions<T>(object: &mut JsonValue, item: &T, descriptions: &JsonValue)
-// where
-//     T: Iterable + Serialize + ToStructure,
-// {
-//     // Needs to change this to some structure
-//     let self_json = json::parse(&serde_json::to_string(&item).unwrap()).unwrap();
+/// storing the physical bytes of a certain section of the document
+#[derive(Debug, TS)]
+#[ts(export)]
+pub struct PhysicalStructure {
+    pub stream_name: String,
+    pub structure_name: Option<String>,
+    // the below will be made into a string for TS
+    pub bytes: Vec<u8>,
+    pub start_index: u64,
+    pub end_index: u64,
+    pub description: Option<String>,
+}
 
-//     for (field_name, _) in item.iter() {
-//         let the_val = self_json[field_name].clone();
+impl PhysicalStructure {
+    pub fn from_reader_range<T: Read + Seek>(
+        reader: &mut T,
+        start: u64,
+        end: u64,
+        stream_name: &str,
+    ) -> Self {
+        let mut bytes = vec![];
+        reader.seek(SeekFrom::Start(start)).unwrap();
+        reader.take(end - start).read_to_end(&mut bytes).unwrap();
 
-//         if descriptions.has_key(&field_name) {
-//             object[field_name] =
-//                 object! { val: the_val, description: descriptions[field_name].clone() };
-//         } else {
-//             object[field_name] = object! { val: the_val, description: "" };
-//         }
-//     }
-// }
+        PhysicalStructure {
+            stream_name: stream_name.to_string(),
+            bytes,
+            start_index: start,
+            end_index: end,
+            description: None,
+            structure_name: None,
+        }
+    }
+
+    pub fn structure_name(mut self, name: &str) -> Self {
+        self.structure_name = Some(name.to_string());
+        self
+    }
+
+    pub fn description(mut self, description: &str) -> Self {
+        self.description = Some(description.to_string());
+        self
+    }
+}
+
+impl From<&PhysicalStructure> for JsonValue {
+    fn from(value: &PhysicalStructure) -> Self {
+        let hex_string = hex::encode_upper(&value.bytes);
+
+        object! {
+            stream_name: value.stream_name.clone(),
+            structure_name: value.structure_name.clone(),
+            bytes: hex_string,
+            start_index: value.start_index,
+            end_index: value.end_index,
+            description: value.description.clone(),
+        }
+    }
+}
+
+impl Into<JsonValue> for PhysicalStructure {
+    fn into(self) -> JsonValue {
+        JsonValue::from(&self)
+    }
+}
 
 #[allow(non_snake_case)]
 /// Style sheet information strucure
@@ -137,6 +186,10 @@ pub struct Fib {
     pub fcPlcfLst: i32,
     /// Length of the fcPlcffLst
     pub lcbPlcfLst: u32,
+    /// Offset in Table Stream of the List Format Override
+    pub fcPlfLfo: i32,
+    /// Count of bytes of the PlfLfo
+    pub lcbPlfLfo: u32,
     // Add other FIB fields as needed
 }
 
@@ -144,7 +197,7 @@ pub struct Fib {
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
 pub struct LSTs {
-    pub num_LSTs: u8,
+    pub num_LSTs: u16,
     pub LSTs: Vec<LST>,
 }
 
@@ -180,15 +233,22 @@ pub struct LVLF {
     pub grfhic: u8,
 }
 
+/// The formatting for a single level of a list
+#[allow(non_snake_case, unused)]
 #[derive(Debug)]
-pub struct LVL {}
+pub struct LVL {
+    pub lvlf: LVLF,
+    pub grpprlChpx: Vec<u8>,
+    pub grpprlPapx: Vec<u8>,
+    pub nubmer_text: String,
+}
 
 /// List Table
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
 pub struct LST {
-    lstf: LSTF,
-    level_styles: Vec<LVL>,
+    pub lstf: LSTF,
+    pub level_styles: Vec<LVL>,
 }
 
 #[allow(non_snake_case, unused)]
@@ -309,7 +369,7 @@ pub struct DictionaryPropertyType {
 }
 
 #[allow(non_camel_case_types, unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum NormalPropertyType {
     VT_EMPTY,
     VT_NULL,
@@ -381,7 +441,7 @@ pub enum NormalPropertyType {
 }
 
 #[allow(non_snake_case, unused)]
-#[derive(Debug)]
+#[derive(Debug, Iterable, Serialize)]
 pub struct DocumentSummaryInfoStream {
     pub codepage: Option<NormalPropertyType>,
     pub category: Option<NormalPropertyType>,
@@ -510,5 +570,16 @@ impl DictionaryPropertyType {
             }
         }
         None
+    }
+}
+
+#[allow(non_snake_case, unused)]
+impl LSTF {
+    pub fn fSimpleList(&self) -> bool {
+        self.flagfield & 0x01 == 0x01
+    }
+
+    pub fn fHybridList(&self) -> bool {
+        self.flagfield & 0x10 == 0x10
     }
 }

@@ -56,6 +56,8 @@ impl FromReader for Fib {
         reader.seek(SeekFrom::Start(0x02E2))?;
         let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
         let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
+        let fcPlfLfo = reader.read_i32::<LittleEndian>()?;
+        let lcbPlfLfo = reader.read_u32::<LittleEndian>()?;
 
         Ok(Fib {
             wIdent,
@@ -80,6 +82,8 @@ impl FromReader for Fib {
             lcbClx,
             fcPlcfLst,
             lcbPlcfLst,
+            fcPlfLfo,
+            lcbPlfLfo,
         })
     }
 }
@@ -1031,11 +1035,11 @@ impl FromReader for LSTs {
     fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
         // numbers of LST structures
         let num_ltss = reader.read_u16::<LittleEndian>()?;
-        println!("Number of LTS's: {}", num_ltss);
+        // println!("Number of LTS's: {}", num_ltss);
 
-        let bytes_left = reader.bytes().count() as i64;
-        println!("Bytes at start: {}", bytes_left);
-        let _ = reader.seek(SeekFrom::Current(-bytes_left))?;
+        // let bytes_left = reader.bytes().count() as i64;
+        // println!("Bytes at start: {}", bytes_left);
+        // let _ = reader.seek(SeekFrom::Current(-bytes_left))?;
 
         // make the LSTF
         let mut lsts = Vec::with_capacity(num_ltss.into());
@@ -1064,67 +1068,109 @@ impl FromReader for LSTs {
                     compat_flags: html_compat_flags_bitfield,
                 }
             };
-            println!("{:#?}", LSTF);
+            // println!("{:#X?}", LSTF);
 
-            lsts.push(LSTF);
+            lsts.push(LST {
+                lstf: LSTF,
+                level_styles: Vec::new(),
+            });
         }
 
-        let bytes_left = reader.bytes().count() as i64;
-        println!("Bytes after reading first LSTF: {}", bytes_left);
-        let _ = reader.seek(SeekFrom::Current(-bytes_left))?;
+        // let bytes_left = reader.bytes().count() as i64;
+        // println!("Bytes after reading the LSTFs: {}", bytes_left);
+        // let _ = reader.seek(SeekFrom::Current(-bytes_left))?;
 
-        // make the LVLF
-        #[allow(non_snake_case, unused)]
-        let LVLF = {
-            let iStartAt = reader.read_i32::<LittleEndian>().unwrap();
-            let nfc = reader.read_u8().unwrap();
+        for lst in lsts.iter_mut() {
+            // the number of LVLF structures to reading depending on fSimpleFlag
+            let num_lvlf = if lst.lstf.fSimpleList() { 1 } else { 9 };
 
-            let bitfield = reader.read_u16::<BigEndian>().unwrap();
+            let mut level_styles = Vec::with_capacity(num_ltss.into());
 
-            let jc = ((bitfield & 0xC0) >> 6) as u8;
-            let fLegal = (bitfield & 0x20) == 0x20;
-            let fNoRestart = (bitfield & 0x10) == 0x10;
-            let fPrev = (bitfield & 0x08) == 0x08;
-            let fPrevSpace = (bitfield & 0x04) == 0x04;
-            let fWord6 = (bitfield & 0x02) == 0x02;
+            for _ in 0..num_lvlf {
+                #[allow(non_snake_case, unused)]
+                let LVLF = {
+                    let iStartAt = reader.read_i32::<LittleEndian>().unwrap(); // 4
+                    let nfc = reader.read_u8().unwrap(); // 1
 
-            let mut rgbxchNums = [0; 9];
-            reader.read_exact(&mut rgbxchNums).unwrap();
+                    let bitfield = reader.read_u8().unwrap(); // 1
 
-            let ixchFollow = reader.read_u8().unwrap();
-            let dxaSpace = reader.read_i32::<LittleEndian>().unwrap();
-            let dxaIndent = reader.read_i32::<LittleEndian>().unwrap();
-            let cbGrpprlChpx = reader.read_u8().unwrap();
-            let cbGrpprlPapx = reader.read_u8().unwrap();
+                    let jc = ((bitfield & 0xC0) >> 6) as u8;
+                    let fLegal = (bitfield & 0x20) == 0x20;
+                    let fNoRestart = (bitfield & 0x10) == 0x10;
+                    let fPrev = (bitfield & 0x08) == 0x08;
+                    let fPrevSpace = (bitfield & 0x04) == 0x04;
+                    let fWord6 = (bitfield & 0x02) == 0x02;
 
-            let ilvlRestartLim = reader.read_u8().unwrap();
-            let grfhic = reader.read_u8().unwrap();
+                    let mut rgbxchNums = [0; 9];
+                    reader.read_exact(&mut rgbxchNums).unwrap(); // 9
 
-            LVLF {
-                iStartAt,
-                nfc,
-                jc,
-                fLegal,
-                fNoRestart,
-                fPrev,
-                fPrevSpace,
-                fWord6,
-                rgbxchNums,
-                ixchFollow,
-                dxaSpace,
-                dxaIndent,
-                cbGrpprlChpx,
-                cbGrpprlPapx,
-                ilvlRestartLim,
-                grfhic,
+                    let ixchFollow = reader.read_u8().unwrap(); // 1
+                    let dxaSpace = reader.read_i32::<LittleEndian>().unwrap(); // 4
+                    let dxaIndent = reader.read_i32::<LittleEndian>().unwrap(); // 4
+                    let cbGrpprlPapx = reader.read_u8().unwrap(); // 1
+                    let cbGrpprlChpx = reader.read_u8().unwrap(); // 1
+                    let ilvlRestartLim = reader.read_u8().unwrap(); // 1
+                    let grfhic = reader.read_u8().unwrap(); // 1
+
+                    LVLF {
+                        iStartAt,
+                        nfc,
+                        jc,
+                        fLegal,
+                        fNoRestart,
+                        fPrev,
+                        fPrevSpace,
+                        fWord6,
+                        rgbxchNums,
+                        ixchFollow,
+                        dxaSpace,
+                        dxaIndent,
+                        cbGrpprlChpx,
+                        cbGrpprlPapx,
+                        ilvlRestartLim,
+                        grfhic,
+                    }
+                };
+
+                // println!("{:#X?}", LVLF);
+                // println!("{:#?}", LVLF);
+
+                // read cbGrpprlPapx bytes
+                let mut grpprl_papx_buffer = vec![0; LVLF.cbGrpprlPapx as usize];
+                reader.read_exact(&mut grpprl_papx_buffer).unwrap();
+
+                // read cbGrpprlChpx bytes
+                let mut grpprl_chpx_buffer = vec![0; LVLF.cbGrpprlChpx as usize];
+                reader.read_exact(&mut grpprl_chpx_buffer).unwrap();
+
+
+                let number_text = {
+                    let length_byte = reader.read_u16::<LittleEndian>().unwrap();
+                    // println!("Length of Number Text: {}", length_byte);
+                    let mut name_buffer: Vec<u16> = vec![0; length_byte as usize];
+                    reader.read_u16_into::<BigEndian>(&mut name_buffer)?;
+                    String::from_utf16(&name_buffer).unwrap()
+                };
+
+                level_styles.push(LVL {
+                    lvlf: LVLF,
+                    grpprlChpx: grpprl_chpx_buffer,
+                    grpprlPapx: grpprl_papx_buffer,
+                    nubmer_text: number_text,
+                });
             }
-        };
+
+            lst.level_styles = level_styles;
+        }
 
         // calculate and pring number of remaining bytes in buffer
-        let remaining_bytes = reader.bytes().count();
-        println!("Remaining bytes in buffer: {}", remaining_bytes);
+        // let remaining_bytes = reader.bytes().count();
+        // println!("Remaining bytes in buffer: {}", remaining_bytes);
 
-        println!("{:#?}", LVLF);
-        todo!();
+        // redundant type lol
+        Ok(LSTs {
+            num_LSTs: num_ltss,
+            LSTs: lsts,
+        })
     }
 }

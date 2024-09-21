@@ -3,11 +3,11 @@ use from_reader::FromReader;
 use json::JsonValue;
 pub use model::*;
 use std::{
+    cell::RefCell,
     fs::File,
     io::{self, BufRead, BufReader, Cursor, Read, Seek, SeekFrom},
     vec,
 };
-
 
 mod from_c_struct;
 mod from_reader;
@@ -17,10 +17,12 @@ mod to_structure;
 #[allow(unused)]
 #[derive(Debug)]
 pub struct WordDocument {
-    pub cfb: CompoundFile<File>,
+    pub cfb: RefCell<CompoundFile<File>>,
     pub fib: Fib,
     pub stylesheet: SHSHI,
     pub piece_table: PLCF<PCD>,
+    pub list_tables: LSTs,
+    pub table_stream_name: String,
     pub document_summary_information_stream: DocumentSummaryInfoStream,
     pub summary_information: SummaryInformation,
 }
@@ -125,17 +127,78 @@ impl WordDocument {
         };
 
         // Read the List Tables
-        // let list_tables = {
-        //     let mut list_table_buffer = vec![0; fib.lcbPlcfLst as usize];
-        //     table_stream.seek(SeekFrom::Start(fib.fcPlcfLst as u64))?;
-        //     table_stream.read_exact(&mut list_table_buffer)?;
+        let list_tables = {
+            // making a set of bytes to read and write from
+            // let list_table_buffer = vec![0u8; 71];
+            // let mut list_table_buffer = Cursor::new(list_table_buffer);
 
-        //     let mut list_table_buffer = BufReader::new(Cursor::new(list_table_buffer));
-        //     // Dont do this witha `from_reader`
-        //     let list_tables = LSTs::from_reader(&mut list_table_buffer)?;
+            // // iStartAt
+            // list_table_buffer.write(&1i32.to_le_bytes())?;
 
-        //     list_tables
-        // };
+            // // nfc
+            // list_table_buffer.write(&0x02u8.to_le_bytes())?;
+
+            // // bitfield
+            // list_table_buffer.write(&0u8.to_le_bytes())?;
+
+            // // rgbxchNums
+            // list_table_buffer.write(&1u8.to_le_bytes())?;
+            // for _ in 0..8 {
+            //     list_table_buffer.write(&0u8.to_le_bytes())?;
+            // }
+            // // ixchFollow0x03
+            // list_table_buffer.write(&0x03u8.to_le_bytes())?;
+            // list_table_buffer.write(&0i32.to_le_bytes())?;
+            // list_table_buffer.write(&0u32.to_le_bytes())?;
+            // list_table_buffer.write(&0x0Du8.to_le_bytes())?;
+            // list_table_buffer.write(&0x18u8.to_le_bytes())?;
+            // // ilvlRestartLim
+            // list_table_buffer.write(&0x00u8.to_le_bytes())?;
+            // list_table_buffer.write(&0u8.to_le_bytes())?;
+
+            // for _ in 0..0x18 {
+            //     list_table_buffer.write(&0u8.to_le_bytes())?;
+            // }
+
+            // for _ in 0..0xD {
+            //     list_table_buffer.write(&0u8.to_le_bytes())?;
+            // }
+            // //"\0x0000." as bytes
+            // list_table_buffer.write(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00])?;
+
+            // // Second LVL
+
+            // // putting curser back to the start
+            // list_table_buffer.seek(SeekFrom::Start(0))?;
+
+            // something has gone awry here picbile the length of the PLcfLSt does not incude the LVL structures that come afterwards
+            // calculating this to at least not run in to the next section, as the lcbPlcfLst is too small
+            let distance_to_plf_lfo = fib.fcPlfLfo - fib.fcPlcfLst;
+
+            let mut list_table_buffer = vec![0; distance_to_plf_lfo as usize];
+            table_stream.seek(SeekFrom::Start(fib.fcPlcfLst as u64))?;
+            table_stream.read_exact(&mut list_table_buffer)?;
+            dbg!(fib.fcPlcfLst);
+            dbg!(fib.lcbPlcfLst);
+            // dbg!((fib.fcPlfLfo, fib.lcbPlfLfo));
+            println!(
+                "bytes between fcPlcfLst and fcPlfLfo: {}",
+                fib.fcPlfLfo - fib.fcPlcfLst
+            );
+            // println!("bytes remaining in table stream: {}", table_stream.bytes().count());
+
+            let mut list_table_buffer = BufReader::new(Cursor::new(list_table_buffer));
+            // Dont do this witha `from_reader`
+            let list_tables = LSTs::from_reader(&mut list_table_buffer)?;
+            // todo!();
+
+            // println!("List Tables: {:#?}", list_tables);
+            list_tables
+        };
+
+        // Read sttbListNames if there are any
+
+        // Read the LFO records (List Format Override) if any
 
         // Read the PlcfbtePapx
         {
@@ -147,25 +210,126 @@ impl WordDocument {
             //     hex::encode_upper(&plcfbte_papx_buffer[..])
             // );
         }
+
         Ok(WordDocument {
-            cfb,
+            cfb: RefCell::new(cfb),
             fib,
             stylesheet,
             piece_table,
+            table_stream_name: table_stream_name.to_string(),
+            list_tables,
             document_summary_information_stream,
             summary_information,
         })
     }
 
-    pub fn to_json(&self) -> JsonValue {
+    pub fn to_json_logical(&self) -> JsonValue {
         let fib = Structure::from("Fib", &self.fib);
         let stylesheet = Structure::from("StyleSheet", &self.stylesheet);
+        let document_summary_information_stream = Structure::from(
+            "Document Summary Information Stream",
+            &self.document_summary_information_stream,
+        );
 
-        JsonValue::from(vec![fib, stylesheet])
+        JsonValue::from(vec![fib, stylesheet, document_summary_information_stream])
+    }
+
+    /// Returns an array of the json value used fo rthe physical Table analysis in the frontend
+    pub fn to_json_physical(&self) -> JsonValue {
+        let fib = &self.fib;
+
+        let mut output = Vec::new();
+        let mut word_doc_stream = self.cfb.borrow_mut().open_stream("WordDocument").unwrap();
+
+        let fib_header_bytes =
+            PhysicalStructure::from_reader_range(&mut word_doc_stream, 0, 72, "WordDocument")
+                .description(
+                    "Fib Header bytes; conttains varaibles like product versionand word version",
+                )
+                .structure_name("Fib 1997 Header");
+        let next_fib_section =
+            PhysicalStructure::from_reader_range(&mut word_doc_stream, 72, 402, "WordDocument")
+                .description("variables ccpText - lcbWss of the Fib")
+                .structure_name("Fib 1997 cont.");
+        let next_fib_section_2 =
+            PhysicalStructure::from_reader_range(&mut word_doc_stream, 402, 898, "WordDocument")
+                .description("variables fcDop - lcbSttbfUser of the Fib. End of Word 97 Fib")
+                .structure_name("Fib 1997 cont.");
+        let word_2000_defs =
+            PhysicalStructure::from_reader_range(&mut word_doc_stream, 898, 1034, "WordDocument")
+                .description("Word 2000 definitions. Variables fcPlcTch - lcbPlcfpgp")
+                .structure_name("Fib 2000 ext.");
+        let word_2002_defs =
+            PhysicalStructure::from_reader_range(&mut word_doc_stream, 1034, 1242, "WordDocument")
+                .description("Word 2002 definitions. Variables fcPlcfuim - lcbPlcflvcMixedXP")
+                .structure_name("Fib 2002 ext.");
+        let word_2003_defs =
+            PhysicalStructure::from_reader_range(&mut word_doc_stream, 1242, 1258, "WordDocument")
+                .description("Word 2003 definitions. Variables fcHplxsdr - cQuickSavesNew")
+                .structure_name("Fib 2003 ext.");
+
+        output.extend(vec![
+            fib_header_bytes,
+            next_fib_section,
+            next_fib_section_2,
+            word_2000_defs,
+            word_2002_defs,
+            word_2003_defs,
+        ]); // Consider annotating these all as FIB as `(partial FIB)`
+
+        let mut table_stream = self
+            .cfb
+            .borrow_mut()
+            .open_stream(&self.table_stream_name)
+            .unwrap();
+
+        let text_section = PhysicalStructure::from_reader_range(
+            &mut table_stream,
+            fib.fcMin as u64,
+            fib.fcMin as u64,
+            "Table Stream",
+        )
+        .description("first character to alst character of the regular text section");
+        output.push(text_section);
+
+        let stylesheet = PhysicalStructure::from_reader_range(
+            &mut table_stream,
+            fib.fcStshf as u64,
+            (fib.fcStshf + fib.lcbStshf as i32) as u64,
+            "Table Stream",
+        )
+        .description("STSHI(Stylesheet) structure");
+        output.push(stylesheet);
+
+        let footnote_run = Self::get_offset_and_count(&mut word_doc_stream, 0x00AA);
+        output.push(
+            PhysicalStructure::from_reader_range(
+                &mut word_doc_stream,
+                footnote_run.0,
+                footnote_run.0 + footnote_run.1,
+                "WordDocument",
+            )
+            .description("Footnote Reference Structure"),
+        );
+
+        output.into()
+    }
+
+    /// helper function to read undecoded fib variables from the Word document stream
+    /// ## Note
+    /// assumes that first 4 bytes read is the fcOffset and the next 4 bytes is the count of bytes
+    fn get_offset_and_count<R: Read + Seek>(reader: &mut R, fc_offset: usize) -> (u64, u64) {
+        let mut buffer = [0u8; 8];
+        reader.seek(SeekFrom::Start(fc_offset as u64)).unwrap();
+        reader.read_exact(&mut buffer).unwrap();
+        let fc_offset = i32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
+        let count = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
+        (fc_offset as u64, count as u64)
     }
 
     pub fn print_cfb_structure(&self) {
-        let entries = self.cfb.walk();
+        let cfb = self.cfb.borrow();
+        let entries = cfb.walk();
         for entry in entries {
             if entry.is_stream() {
                 println!("Stream: {}", entry.name());

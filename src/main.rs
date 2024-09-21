@@ -24,7 +24,7 @@ fn main() -> io::Result<()> {
     // let fib = &word_doc.fib;
     // println!("{:?}", fib);
 
-    // word_doc.print_cfb_structure();
+    word_doc.print_cfb_structure();
     Ok(())
 }
 
