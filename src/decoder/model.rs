@@ -140,6 +140,35 @@ impl Into<JsonValue> for PhysicalStructure {
     }
 }
 
+#[derive(Debug, TS)]
+#[ts(export)]
+pub struct ComparisonPhysicalStructure<'a, 'b> {
+    pub ref_structure: &'b PhysicalStructure,
+    pub comp_structure: &'a PhysicalStructure,
+    pub difference_indices: Vec<(usize, usize)>,
+}
+
+impl<'a, 'b> From<&ComparisonPhysicalStructure<'a, 'b>> for JsonValue {
+    fn from(value: &ComparisonPhysicalStructure) -> Self {
+        let mut difference_indices: Vec<JsonValue> = vec![];
+        for (ref_index, comp_index) in &value.difference_indices {
+            difference_indices.push(vec![*ref_index, *comp_index].into());
+        }
+
+        object! {
+            ref_structure: JsonValue::from(value.ref_structure),
+            comp_structure: JsonValue::from(value.comp_structure),
+            difference_indices: difference_indices,
+        }
+    }
+}
+
+impl<'a, 'b> Into<JsonValue> for ComparisonPhysicalStructure<'a, 'b> {
+    fn into(self) -> JsonValue {
+        JsonValue::from(&self)
+    }
+}
+
 #[allow(non_snake_case)]
 /// Style sheet information strucure
 pub struct _STSHI {

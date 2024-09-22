@@ -173,27 +173,34 @@ impl WordDocument {
 
             // something has gone awry here picbile the length of the PLcfLSt does not incude the LVL structures that come afterwards
             // calculating this to at least not run in to the next section, as the lcbPlcfLst is too small
-            let distance_to_plf_lfo = fib.fcPlfLfo - fib.fcPlcfLst;
+            if fib.fcPlcfLst == 0 {
+                // there is no LST
+                LSTs {
+                    num_LSTs: 0,
+                    LSTs: vec![],
+                }
+            } else {
+                let distance_to_plf_lfo = fib.fcPlfLfo - fib.fcPlcfLst;
 
-            let mut list_table_buffer = vec![0; distance_to_plf_lfo as usize];
-            table_stream.seek(SeekFrom::Start(fib.fcPlcfLst as u64))?;
-            table_stream.read_exact(&mut list_table_buffer)?;
-            dbg!(fib.fcPlcfLst);
-            dbg!(fib.lcbPlcfLst);
-            // dbg!((fib.fcPlfLfo, fib.lcbPlfLfo));
-            println!(
-                "bytes between fcPlcfLst and fcPlfLfo: {}",
-                fib.fcPlfLfo - fib.fcPlcfLst
-            );
-            // println!("bytes remaining in table stream: {}", table_stream.bytes().count());
+                let mut list_table_buffer = vec![0; distance_to_plf_lfo as usize];
+                table_stream.seek(SeekFrom::Start(fib.fcPlcfLst as u64))?;
+                table_stream.read_exact(&mut list_table_buffer)?;
+                dbg!(fib.fcPlcfLst);
+                dbg!(fib.lcbPlcfLst);
+                println!(
+                    "bytes between fcPlcfLst and fcPlfLfo: {}",
+                    fib.fcPlfLfo - fib.fcPlcfLst
+                );
+                // println!("bytes remaining in table stream: {}", table_stream.bytes().count());
 
-            let mut list_table_buffer = BufReader::new(Cursor::new(list_table_buffer));
-            // Dont do this witha `from_reader`
-            let list_tables = LSTs::from_reader(&mut list_table_buffer)?;
-            // todo!();
+                let mut list_table_buffer = BufReader::new(Cursor::new(list_table_buffer));
+                // Dont do this witha `from_reader`
+                let list_tables = LSTs::from_reader(&mut list_table_buffer)?;
+                // todo!();
 
-            // println!("List Tables: {:#?}", list_tables);
-            list_tables
+                // println!("List Tables: {:#?}", list_tables);
+                list_tables
+            }
         };
 
         // Read sttbListNames if there are any
@@ -223,7 +230,7 @@ impl WordDocument {
         })
     }
 
-    pub fn to_json_logical(&self) -> JsonValue {
+    pub fn get_logical_structures(&self) -> Vec<Structure> {
         let fib = Structure::from("Fib", &self.fib);
         let stylesheet = Structure::from("StyleSheet", &self.stylesheet);
         let document_summary_information_stream = Structure::from(
@@ -231,11 +238,14 @@ impl WordDocument {
             &self.document_summary_information_stream,
         );
 
-        JsonValue::from(vec![fib, stylesheet, document_summary_information_stream])
+        vec![fib, stylesheet, document_summary_information_stream]
     }
 
-    /// Returns an array of the json value used fo rthe physical Table analysis in the frontend
-    pub fn to_json_physical(&self) -> JsonValue {
+    pub fn to_json_logical(&self) -> JsonValue {
+        JsonValue::from(self.get_logical_structures())
+    }
+
+    pub fn get_physical_sructures(&self) -> Vec<PhysicalStructure> {
         let fib = &self.fib;
 
         let mut output = Vec::new();
@@ -312,7 +322,12 @@ impl WordDocument {
             .description("Footnote Reference Structure"),
         );
 
-        output.into()
+        output
+    }
+
+    /// Returns an array of the json value used fo rthe physical Table analysis in the frontend
+    pub fn to_json_physical(&self) -> JsonValue {
+        self.get_physical_sructures().into()
     }
 
     /// helper function to read undecoded fib variables from the Word document stream
@@ -325,6 +340,27 @@ impl WordDocument {
         let fc_offset = i32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
         let count = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
         (fc_offset as u64, count as u64)
+    }
+
+    pub fn compare_to_physical(&self, other_word_doc: &WordDocument) -> JsonValue {
+        let reference_physical_strucutres = self.get_physical_sructures();
+        let other_physical_strucutres = other_word_doc.get_physical_sructures();
+
+        let difference_indeces = reference_physical_strucutres
+            .iter()
+            .zip(other_physical_strucutres.iter())
+            .map(|(ref_structure, other_structure)| {
+                let differences =
+                    compute_differences(ref_structure.bytes.clone(), other_structure.bytes.clone());
+                ComparisonPhysicalStructure {
+                    ref_structure,
+                    comp_structure: other_structure,
+                    difference_indices: differences,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        difference_indeces.into()
     }
 
     pub fn print_cfb_structure(&self) {
@@ -340,7 +376,7 @@ impl WordDocument {
     }
 }
 
-/// Read teh text Section of the document
+/// Read the text Section of the document
 #[allow(non_snake_case)]
 fn _read_text<R: Read + Seek>(fib: &Fib, reader: &mut R) -> io::Result<()> {
     if !fib.fComplex {
@@ -411,4 +447,39 @@ fn _read_text<R: Read + Seek>(fib: &Fib, reader: &mut R) -> io::Result<()> {
     } else {
         todo!();
     }
+}
+
+fn compute_differences(vec1: Vec<u8>, vec2: Vec<u8>) -> Vec<(usize, usize)> {
+    let mut differences = Vec::new();
+    let mut start: Option<usize> = None;
+
+    for (i, (&byte1, &byte2)) in vec1.iter().zip(vec2.iter()).enumerate() {
+        if byte1 != byte2 {
+            // If start is None, this is the beginning of a new difference
+            if start.is_none() {
+                start = Some(i);
+            }
+        } else {
+            // If the bytes are the same and we are tracking a difference, close the range
+            if let Some(s) = start {
+                differences.push((s, i));
+                start = None;
+            }
+        }
+    }
+
+    // compute difference in size of the two vectors and use for the last difference
+    if vec1.len() > vec2.len() {
+        differences.push((vec2.len(), vec1.len()));
+    } else if vec2.len() > vec1.len() {
+        differences.push((vec1.len(), vec2.len()));
+    }
+
+    // Handle the case where the last part of the vectors differs
+    // Possibly AI Generated Slop
+    // if let Some(s) = start {
+    //     differences.push((s, vec1.len()));
+    // }
+
+    differences
 }
