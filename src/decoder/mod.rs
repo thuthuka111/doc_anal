@@ -293,14 +293,14 @@ impl WordDocument {
             .open_stream(&self.table_stream_name)
             .unwrap();
 
-        let text_section = PhysicalStructure::from_reader_range(
-            &mut table_stream,
+        let main_text_section = PhysicalStructure::from_reader_range(
+            &mut word_doc_stream,
             fib.fcMin as u64,
-            fib.fcMin as u64,
+            fib.fcMin as u64 * fib.ccpText as u64,
             "Table Stream",
         )
         .description("first character to alst character of the regular text section");
-        output.push(text_section);
+        output.push(main_text_section);
 
         let stylesheet = PhysicalStructure::from_reader_range(
             &mut table_stream,
@@ -314,7 +314,7 @@ impl WordDocument {
         let footnote_run = Self::get_offset_and_count(&mut word_doc_stream, 0x00AA);
         output.push(
             PhysicalStructure::from_reader_range(
-                &mut word_doc_stream,
+                &mut table_stream,
                 footnote_run.0,
                 footnote_run.0 + footnote_run.1,
                 "WordDocument",
@@ -350,8 +350,10 @@ impl WordDocument {
             .iter()
             .zip(other_physical_strucutres.iter())
             .map(|(ref_structure, other_structure)| {
-                let differences =
-                    compute_differences(ref_structure.bytes.clone(), other_structure.bytes.clone());
+                let differences = compute_physical_differences(
+                    ref_structure.bytes.clone(),
+                    other_structure.bytes.clone(),
+                );
                 ComparisonPhysicalStructure {
                     ref_structure,
                     comp_structure: other_structure,
@@ -361,6 +363,66 @@ impl WordDocument {
             .collect::<Vec<_>>();
 
         difference_indeces.into()
+    }
+
+    pub fn compare_to_logical(&self, other_word_doc: &WordDocument) -> JsonValue {
+        let reference_logical_structures = self.get_logical_structures();
+        let other_logical_strucutres = other_word_doc.get_logical_structures();
+
+        let mut logical_structures: Vec<ComparisonLogicalStructure> = Vec::new();
+
+        for (ref_structure, other_structure) in reference_logical_structures
+            .iter()
+            .zip(other_logical_strucutres.iter())
+        {
+            assert_eq!(ref_structure.name, other_structure.name);
+            let bool_arr = compute_structure_item_differences(
+                &ref_structure.structure,
+                &other_structure.structure,
+            );
+            let substructure_arr = match (
+                ref_structure.substructs.as_ref(),
+                other_structure.substructs.as_ref(),
+            ) {
+                (Some(ref_substructures), Some(other_substructures)) => {
+                    compute_subsctructure_differences(ref_substructures, other_substructures)
+                }
+                (None, Some(other_substructures)) => {
+                    let mut substructure_arr = Vec::new();
+                    for other_substructure in other_substructures.iter() {
+                        substructure_arr.push(ComparisonLogicalStructure {
+                            ref_structure: None,
+                            comp_structure: Some(other_substructure),
+                            structure_differences: vec![false; other_substructure.structure.len()],
+                            substructure_differences: Vec::new(),
+                        });
+                    }
+                    substructure_arr
+                }
+                (Some(ref_substructures), None) => {
+                    let mut substructure_arr = Vec::new();
+                    for ref_substructure in ref_substructures.iter() {
+                        substructure_arr.push(ComparisonLogicalStructure {
+                            ref_structure: Some(ref_substructure),
+                            comp_structure: None,
+                            structure_differences: vec![false; ref_substructure.structure.len()],
+                            substructure_differences: Vec::new(),
+                        });
+                    }
+                    substructure_arr
+                }
+                (None, None) => Vec::new(),
+            };
+
+            logical_structures.push(ComparisonLogicalStructure {
+                ref_structure: Some(ref_structure),
+                comp_structure: Some(other_structure),
+                structure_differences: bool_arr,
+                substructure_differences: substructure_arr,
+            });
+        }
+
+        logical_structures.into()
     }
 
     pub fn print_cfb_structure(&self) {
@@ -449,7 +511,7 @@ fn _read_text<R: Read + Seek>(fib: &Fib, reader: &mut R) -> io::Result<()> {
     }
 }
 
-fn compute_differences(vec1: Vec<u8>, vec2: Vec<u8>) -> Vec<(usize, usize)> {
+fn compute_physical_differences(vec1: Vec<u8>, vec2: Vec<u8>) -> Vec<(usize, usize)> {
     let mut differences = Vec::new();
     let mut start: Option<usize> = None;
 
@@ -476,10 +538,251 @@ fn compute_differences(vec1: Vec<u8>, vec2: Vec<u8>) -> Vec<(usize, usize)> {
     }
 
     // Handle the case where the last part of the vectors differs
-    // Possibly AI Generated Slop
-    // if let Some(s) = start {
-    //     differences.push((s, vec1.len()));
-    // }
+    if let Some(s) = start {
+        differences.push((s, vec1.len()));
+    }
 
     differences
+}
+
+fn compute_structure_item_differences(
+    items: &Vec<StructureItem>,
+    other_items: &Vec<StructureItem>,
+) -> Vec<bool> {
+    let mut differences = Vec::new();
+
+    let mut items_iter = items.iter();
+    let mut other_items_iter = other_items.iter();
+
+    while let (Some(item), Some(other_item)) = (items_iter.next(), other_items_iter.next()) {
+        assert_eq!(
+            item.name, other_item.name,
+            "Structure items should really be the same"
+        );
+        if item.value == other_item.value {
+            differences.push(false);
+        } else {
+            differences.push(true);
+        }
+    }
+
+    differences
+}
+
+fn compute_subsctructure_differences<'a, 'b>(
+    substructures: &'a Vec<Structure>,
+    other_substructures: &'b Vec<Structure>,
+) -> Vec<ComparisonLogicalStructure<'a, 'b>> {
+    let mut differences = Vec::new();
+
+    let mut compared_other_structures = Vec::new();
+
+    for substructure in substructures.iter() {
+        let other_structure_matching_name = other_substructures
+            .iter()
+            .enumerate()
+            .find(|(_, s)| s.name == substructure.name);
+        match other_structure_matching_name {
+            Some((index, other_structure)) => {
+                let structure_differeces = compute_structure_item_differences(
+                    &substructure.structure,
+                    &other_structure.structure,
+                );
+
+                differences.push(ComparisonLogicalStructure {
+                    ref_structure: Some(&substructure),
+                    comp_structure: Some(&other_structure),
+                    structure_differences: structure_differeces,
+                    substructure_differences: Vec::new(),
+                });
+                compared_other_structures.push(index);
+            }
+            None => {
+                differences.push(ComparisonLogicalStructure {
+                    ref_structure: Some(substructure),
+                    comp_structure: None,
+                    structure_differences: vec![false; substructure.structure.len()],
+                    substructure_differences: Vec::new(),
+                });
+            }
+        }
+    }
+
+    for (_, other_structure) in other_substructures
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| compared_other_structures.contains(i))
+    {
+        differences.push(ComparisonLogicalStructure {
+            ref_structure: None,
+            comp_structure: Some(other_structure),
+            structure_differences: vec![false; other_structure.structure.len()],
+            substructure_differences: Vec::new(),
+        });
+    }
+
+    differences
+}
+
+// tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+
+    #[test]
+    fn test_physical_compute_differences() {
+        let vec1 = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let vec2 = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
+        let differences = compute_physical_differences(vec1, vec2);
+        assert_eq!(differences, vec![(9, 10)]);
+    }
+
+    #[test]
+    fn test_logical_differences() {
+        let test_structure = Structure {
+            name: "STHI".to_string(),
+            structure: vec![
+                StructureItem {
+                    name: "cstd".to_string(),
+                    value: "0x00000001".to_string(),
+                    description: None,
+                },
+                StructureItem {
+                    name: "cbSTDBaseInX".to_string(),
+                    value: "0x00000000".to_string(),
+                    description: None,
+                },
+                StructureItem {
+                    name: "cbSTDBaseInY".to_string(),
+                    value: "0x00000000".to_string(),
+                    description: None,
+                },
+            ],
+            substructs: None,
+        };
+
+        let test_other_strucure = Structure {
+            name: "STHI".to_string(),
+            structure: vec![
+                StructureItem {
+                    name: "cstd".to_string(),
+                    value: "0x00000001".to_string(),
+                    description: None,
+                },
+                StructureItem {
+                    name: "cbSTDBaseInX".to_string(),
+                    value: "0x00000000".to_string(),
+                    description: None,
+                },
+                StructureItem {
+                    name: "cbSTDBaseInY".to_string(),
+                    value: "0x00000001".to_string(),
+                    description: None,
+                },
+            ],
+            substructs: None,
+        };
+
+        let differences = compute_structure_item_differences(
+            &test_structure.structure,
+            &test_other_strucure.structure,
+        );
+        assert_eq!(differences, vec![false, false, true]);
+    }
+
+    #[test]
+    fn test_substructure_logical() {
+        let styles_1 = vec![
+            Structure {
+                name: "Normal,DO NOT USE,n".to_string(),
+                structure: vec![
+                    StructureItem {
+                        name: "std".to_string(),
+                        value: "0".to_string(),
+                        description: None,
+                    },
+                    StructureItem {
+                        name: "fScratch".to_string(),
+                        value: "false".to_string(),
+                        description: None,
+                    },
+                ],
+                substructs: None,
+            },
+            Structure {
+                name: "Heading 1,H1".to_string(),
+                structure: vec![
+                    StructureItem {
+                        name: "std".to_string(),
+                        value: "1".to_string(),
+                        description: None,
+                    },
+                    StructureItem {
+                        name: "fScratch".to_string(),
+                        value: "false".to_string(),
+                        description: None,
+                    },
+                ],
+                substructs: None,
+            },
+        ];
+
+        let styles_2 = vec![
+            Structure {
+                name: "Normal,DO NOT USE,n".to_string(),
+                structure: vec![
+                    StructureItem {
+                        name: "std".to_string(),
+                        value: "65".to_string(),
+                        description: None,
+                    },
+                    StructureItem {
+                        name: "fScratch".to_string(),
+                        value: "false".to_string(),
+                        description: None,
+                    },
+                ],
+                substructs: None,
+            },
+            Structure {
+                name: "Heading 2,H2".to_string(),
+                structure: vec![
+                    StructureItem {
+                        name: "std".to_string(),
+                        value: "2".to_string(),
+                        description: None,
+                    },
+                    StructureItem {
+                        name: "fScratch".to_string(),
+                        value: "false".to_string(),
+                        description: None,
+                    },
+                ],
+                substructs: None,
+            },
+        ];
+
+        let differences = compute_subsctructure_differences(&styles_1, &styles_2);
+        assert_eq!(differences.len(), 3);
+        assert_eq!(differences[0].structure_differences, vec![true, false]);
+
+        assert!(differences[1].ref_structure.is_some());
+        assert!(differences[1].comp_structure.is_none());
+
+        assert!(differences[2].ref_structure.is_none());
+        assert!(differences[2].comp_structure.is_some());
+    }
+
+    #[test]
+    fn test_files() {
+        let file_1 = File::open("C:\\Users\\Thuthuka\\Downloads\\test1.doc").unwrap();
+        let file_2 = File::open("C:\\Users\\Thuthuka\\Downloads\\wordpeg.doc").unwrap();
+
+        let test1 = WordDocument::read_file(file_1).unwrap();
+        let wordpeg = WordDocument::read_file(file_2).unwrap();
+
+        let _ = test1.compare_to_physical(&wordpeg);
+        let _ = test1.compare_to_logical(&wordpeg);
+    }
 }

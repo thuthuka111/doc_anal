@@ -169,6 +169,42 @@ impl<'a, 'b> Into<JsonValue> for ComparisonPhysicalStructure<'a, 'b> {
     }
 }
 
+#[derive(Debug, TS)]
+#[ts(export)]
+pub struct ComparisonLogicalStructure<'a, 'b> {
+    pub ref_structure: Option<&'a Structure>,
+    pub comp_structure: Option<&'b Structure>,
+    pub structure_differences: Vec<bool>,
+    pub substructure_differences: Vec<ComparisonLogicalStructure<'a, 'b>>,
+}
+
+impl<'a, 'b> From<&ComparisonLogicalStructure<'a, 'b>> for JsonValue {
+    fn from(value: &ComparisonLogicalStructure) -> Self {
+        let mut structure_differences: Vec<JsonValue> = vec![];
+        for difference in &value.structure_differences {
+            structure_differences.push(difference.clone().into());
+        }
+
+        let mut substructure_differences: Vec<JsonValue> = vec![];
+        for substructure in &value.substructure_differences {
+            substructure_differences.push(substructure.into());
+        }
+
+        object! {
+            ref_structure: JsonValue::from(value.ref_structure),
+            comp_structure: JsonValue::from(value.comp_structure),
+            structure_differences: structure_differences,
+            substructure_differences: substructure_differences,
+        }
+    }
+}
+
+impl<'a, 'b> Into<JsonValue> for ComparisonLogicalStructure<'a, 'b> {
+    fn into(self) -> JsonValue {
+        JsonValue::from(&self)
+    }
+}
+
 #[allow(non_snake_case)]
 /// Style sheet information strucure
 pub struct _STSHI {
