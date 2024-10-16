@@ -380,7 +380,7 @@ pub struct STD {
 
 /// Peice Descriptor (PCD)
 #[allow(non_snake_case, unused)]
-#[derive(Debug)]
+#[derive(Debug, Iterable, Serialize)]
 pub struct PCD {
     pub fNoParaLast: bool,
     pub rest_of_bitfield: [bool; 3],
@@ -541,7 +541,7 @@ pub struct DocumentSummaryInfoStream {
 // Specification at: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-oleps/f7933d28-2cc4-4b36-bc23-8861cbcd37c4
 // Spec help at: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-oleps/3f9119dc-faa2-4bb9-af95-5cf128fa5fbd
 #[allow(non_snake_case, unused)]
-#[derive(Debug)]
+#[derive(Debug, Iterable, Serialize)]
 pub struct SummaryInformation {
     pub title: Option<NormalPropertyType>,
     pub subject: Option<NormalPropertyType>,

@@ -49,7 +49,14 @@ impl ToStructure for Fib {
 
 impl ToStructure for SHSHI {
     fn descriptions() -> JsonValue {
-        object! {}
+        object! {
+            cstd: "The Number of styles in the stylesheet",
+            cbSTDBaseInFile: "The length of STD Base as stored in file",
+            fStdStylenamesWritten: "Flag indicating whether built-in styles are stored",
+            stiMaxWhenSaved: "Max sti known when this file was written",
+            istdMaxFixedWhenSaved: "The number of fixed-index issd's there are",
+            nVerBuiltInNamesWhenSaved: "Current version of build-in stylenames"
+        }
     }
 
     fn structure_items(&self) -> Vec<StructureItem> {
@@ -96,6 +103,15 @@ impl ToStructure for STD {
     fn descriptions() -> JsonValue {
         object! {
             sti: "The style identifier",
+            fScratch: "Spare fields for temporary use, should alwase be zero",
+            fInvalHeight: "Flag indicating PHEs of all text with this styel are wrong",
+            fHasUpe: "Flag indicating that UPEs have been generated",
+            fMassCopy: "Flag indicating that std has been mas-copied",
+            stk: "Style Kind",
+            istdBase: "Base Style identifier",
+            cupx: "Number of UPSx (and UPEs)",
+            istdNext: "Next Style identifier",
+            bchUpe: "Offset ot end of upx's, start of upe's"
         }
     }
 
@@ -150,7 +166,94 @@ impl ToStructure for DocumentSummaryInfoStream {
             });
         }
 
-        structure_items    
+        structure_items
+    }
+
+    fn substructures(&self) -> Option<Vec<Structure>> {
+        None
+    }
+}
+
+impl ToStructure for SummaryInformation {
+    fn descriptions() -> JsonValue {
+        object! {}
+    }
+
+    fn structure_items(&self) -> Vec<StructureItem> {
+        let descriptions = Self::descriptions();
+        let self_json = json::parse(&serde_json::to_string(&self).unwrap()).unwrap();
+        let mut structure_items = vec![];
+
+        for (field_name, _) in self.iter() {
+            let field_val = self_json[field_name].to_string();
+            let description = if descriptions.has_key(&field_name) {
+                Some(descriptions[field_name].clone().to_string())
+            } else {
+                None
+            };
+
+            structure_items.push(StructureItem {
+                name: field_name.to_string(),
+                value: field_val,
+                description,
+            });
+        }
+
+        structure_items
+    }
+
+    fn substructures(&self) -> Option<Vec<Structure>> {
+        None
+    }
+}
+
+impl ToStructure for PLCF<PCD> {
+    fn descriptions() -> JsonValue {
+        object! {}
+    }
+
+    fn structure_items(&self) -> Vec<StructureItem> {
+        vec![]
+    }
+
+    fn substructures(&self) -> Option<Vec<Structure>> {
+        let mut substructures = vec![];
+
+        for (i, pcd) in self.rgstruct.iter().enumerate() {
+            let pcd_structure = Structure::from(&format!("PCD {}", i), pcd);
+            substructures.push(pcd_structure);
+        }
+
+        Some(substructures)
+    }
+}
+
+impl ToStructure for PCD {
+    fn descriptions() -> JsonValue {
+        object! {}
+    }
+
+    fn structure_items(&self) -> Vec<StructureItem> {
+        let descriptions = Self::descriptions();
+        let self_json = json::parse(&serde_json::to_string(&self).unwrap()).unwrap();
+        let mut structure_items = vec![];
+
+        for (field_name, _) in self.iter() {
+            let field_val = self_json[field_name].to_string();
+            let description = if descriptions.has_key(&field_name) {
+                Some(descriptions[field_name].clone().to_string())
+            } else {
+                None
+            };
+
+            structure_items.push(StructureItem {
+                name: field_name.to_string(),
+                value: field_val,
+                description,
+            });
+        }
+
+        structure_items
     }
 
     fn substructures(&self) -> Option<Vec<Structure>> {

@@ -233,12 +233,21 @@ impl WordDocument {
     pub fn get_logical_structures(&self) -> Vec<Structure> {
         let fib = Structure::from("Fib", &self.fib);
         let stylesheet = Structure::from("StyleSheet", &self.stylesheet);
+        let peice_tables = Structure::from("Piece Tables", &self.piece_table);
         let document_summary_information_stream = Structure::from(
-            "Document Summary Information Stream",
+            "Document Summary Information",
             &self.document_summary_information_stream,
         );
+        let summary_information_stream =
+            Structure::from("Summary Information", &self.summary_information);
 
-        vec![fib, stylesheet, document_summary_information_stream]
+        vec![
+            fib,
+            stylesheet,
+            peice_tables,
+            document_summary_information_stream,
+            summary_information_stream,
+        ]
     }
 
     pub fn to_json_logical(&self) -> JsonValue {
@@ -512,6 +521,22 @@ fn _read_text<R: Read + Seek>(fib: &Fib, reader: &mut R) -> io::Result<()> {
 }
 
 fn compute_physical_differences(vec1: Vec<u8>, vec2: Vec<u8>) -> Vec<(usize, usize)> {
+    // map to reflect the nibbles
+    let mut nibble_vec_1 = Vec::with_capacity(vec1.len() * 2);
+    let mut nibble_vec_2 = Vec::with_capacity(vec2.len() * 2);
+
+    for byte in vec1.iter() {
+        nibble_vec_1.push(byte >> 4);
+        nibble_vec_1.push(byte & 0x0F);
+    }
+    for byte in vec2.iter() {
+        nibble_vec_2.push(byte >> 4);
+        nibble_vec_2.push(byte & 0x0F);
+    }
+
+    let vec1 = nibble_vec_1;
+    let vec2 = nibble_vec_2;
+
     let mut differences = Vec::new();
     let mut start: Option<usize> = None;
 
@@ -611,7 +636,7 @@ fn compute_subsctructure_differences<'a, 'b>(
     for (_, other_structure) in other_substructures
         .iter()
         .enumerate()
-        .filter(|(i, _)| compared_other_structures.contains(i))
+        .filter(|(i, _)| !compared_other_structures.contains(i))
     {
         differences.push(ComparisonLogicalStructure {
             ref_structure: None,
@@ -782,7 +807,9 @@ mod tests {
         let test1 = WordDocument::read_file(file_1).unwrap();
         let wordpeg = WordDocument::read_file(file_2).unwrap();
 
-        let _ = test1.compare_to_physical(&wordpeg);
-        let _ = test1.compare_to_logical(&wordpeg);
+        // let _ = test1.compare_to_physical(&wordpeg);
+        // let _ = test1.compare_to_logical(&wordpeg);
+        // let _ = wordpeg.compare_to_logical(&test1);
+        let _ = wordpeg.compare_to_physical(&test1);
     }
 }
