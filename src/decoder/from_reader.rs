@@ -15,7 +15,7 @@ impl FromReader for Fib {
     fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
         reader.seek(SeekFrom::Start(0))?;
 
-        let wIdent = reader.read_u16::<LittleEndian>()?;
+        let wIdent = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
         let nFib = reader.read_u16::<LittleEndian>()?;
         let nProduct = reader.read_u16::<LittleEndian>()?;
         let Lid = reader.read_u16::<LittleEndian>()?;

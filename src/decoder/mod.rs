@@ -85,7 +85,6 @@ impl WordDocument {
         };
 
         let fib = Fib::from_reader(&mut word_doc_stream)?;
-        println!("{:?}", fib);
 
         // Determine which table stream to use
         let table_stream_name = if !fib.fWhichTblStm {

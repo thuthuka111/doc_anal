@@ -260,7 +260,7 @@ impl serde::Serialize for Bytes {
     where
         S: serde::Serializer,
     {
-        hex::encode_upper(&self.bytes).serialize(serializer)
+        format!("0x{}", hex::encode_upper(&self.bytes)).serialize(serializer)
     }
 }
 
@@ -268,7 +268,7 @@ impl serde::Serialize for Bytes {
 #[allow(non_snake_case, unused)]
 #[derive(Debug, Iterable, Serialize)]
 pub struct Fib {
-    pub wIdent: u16,
+    pub wIdent: Bytes,
     pub nFib: u16,
     pub nProduct: u16,
     pub Lid: u16,
