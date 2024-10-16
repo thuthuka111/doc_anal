@@ -17,20 +17,74 @@ impl FromReader for Fib {
 
         let wIdent = reader.read_u16::<LittleEndian>()?;
         let nFib = reader.read_u16::<LittleEndian>()?;
+        let nProduct = reader.read_u16::<LittleEndian>()?;
+        let Lid = reader.read_u16::<LittleEndian>()?;
+        let pnNext = reader.read_i16::<LittleEndian>()?;
 
         reader.seek(SeekFrom::Start(0x0A))?;
         let bitfield = reader.read_u16::<LittleEndian>()?;
+        let fDot = (bitfield & 0x0001) == 0x0001;
+        let fGlsy = (bitfield & 0x0002) == 0x0002;
         let fComplex = (bitfield & 0x0004) == 0x0004;
+        let fHasPic = (bitfield & 0x0008) == 0x0008;
+        let cQuickSaves = ((bitfield & 0x00F0) >> 4) as u8;
+        let fEncrypted = (bitfield & 0x0100) == 0x0100;
         let fWhichTblStm = (bitfield & 0x200) == 0x200;
+        let fReadOnlyRecommended = (bitfield & 0x0400) == 0x0400;
+        let fWriteReservation = (bitfield & 0x0800) == 0x0800;
+        let fExtChar = (bitfield & 0x1000) == 0x1000;
+        let fLoadOverride = (bitfield & 0x2000) == 0x2000;
+        let fFarEast = (bitfield & 0x4000) == 0x4000;
+        let fCrypto = (bitfield & 0x8000) == 0x8000;
 
-        reader.seek(SeekFrom::Start(0x0102))?; // Skip to get to fcPlcfbtePapx
-        let fcPlcfbtePapx = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfbtePapx = reader.read_u32::<LittleEndian>()?;
+        let nFibBack = reader.read_u16::<LittleEndian>()?;
+        let lKey = Bytes::from_u32(reader.read_u32::<LittleEndian>()?);
+        let envr = reader.read_u8()?;
 
+        let bitfield = reader.read_u8()?;
+        let fMac = (bitfield & 0x01) == 0x01;
+        let fEmptySpecial = (bitfield & 0x02) == 0x02;
+        let fLoadOverridePage = (bitfield & 0x04) == 0x04;
+        let fFutureSavedUndo = (bitfield & 0x08) == 0x08;
+        let fWord97Saved = (bitfield & 0x10) == 0x10;
+        let fSpare0: [bool; 3] = [
+            (bitfield & 0x20) == 0x20,
+            (bitfield & 0x40) == 0x40,
+            (bitfield & 0x80) == 0x80,
+        ];
+
+        let Chs = reader.read_u16::<LittleEndian>()?;
+        let chsTables = reader.read_u16::<LittleEndian>()?;
+
+        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x0018);
         reader.seek(SeekFrom::Start(0x0018))?;
         let fcMin = reader.read_i32::<LittleEndian>()?;
         let fcMac = reader.read_i32::<LittleEndian>()?;
 
+        let Csw = reader.read_u16::<LittleEndian>()?;
+        
+        let wMagicCreated = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+        let wMagicRevised = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+        let wMagicCreatedPrivate = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+        let wMagicRevisedPrivate = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+
+        let pnFbpChpFirst_W6 = reader.read_i16::<LittleEndian>()?;
+        let pnChpFirst_W6 = reader.read_i16::<LittleEndian>()?;
+        let cpnBteChp_W6 = reader.read_i16::<LittleEndian>()?;
+        let pnFbpPapFirst_W6 = reader.read_i16::<LittleEndian>()?;
+        let pnPapFirst_W6 = reader.read_i16::<LittleEndian>()?;
+        let cpnBtePap_W6 = reader.read_i16::<LittleEndian>()?;
+        let pnFbpLvcFirst_W6 = reader.read_i16::<LittleEndian>()?;
+        let pnLvcFirst_W6 = reader.read_i16::<LittleEndian>()?;
+        let cpnBteLvc_W6 = reader.read_i16::<LittleEndian>()?;
+        let LidFE = reader.read_i16::<LittleEndian>()?;
+
+        let Clw = reader.read_u16::<LittleEndian>()?;
+        let cbMac = reader.read_i32::<LittleEndian>()?;
+        let lProductCreated = Bytes::from_i32(reader.read_i32::<LittleEndian>()?);
+        let lProductRevised = Bytes::from_i32(reader.read_i32::<LittleEndian>()?);
+
+        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x004C);
         reader.seek(SeekFrom::Start(0x004C))?;
         let ccpText = reader.read_i32::<LittleEndian>()?;
         let ccpFtn = reader.read_i32::<LittleEndian>()?;
@@ -40,34 +94,410 @@ impl FromReader for Fib {
         let ccpEdn = reader.read_i32::<LittleEndian>()?;
         let ccpTxbx = reader.read_i32::<LittleEndian>()?;
         let ccpHrdTxbx = reader.read_i32::<LittleEndian>()?;
-        println!(
-            "current cursor position: {}",
-            reader.seek(SeekFrom::Current(0))?
-        );
+        let pnFbpChpFirst = reader.read_i32::<LittleEndian>()?;
 
-        reader.seek(SeekFrom::Start(0x00A2))?;
+        let pnChpFirst = reader.read_i32::<LittleEndian>()?;
+        let cpnBteChp = reader.read_i32::<LittleEndian>()?;
+        let pnFbpPapFirst = reader.read_i32::<LittleEndian>()?;
+        let pnPapFirst = reader.read_i32::<LittleEndian>()?;
+        let cpnBtePap = reader.read_i32::<LittleEndian>()?;
+
+        let pnFbpLvcFirst = reader.read_i32::<LittleEndian>()?;
+        let pnLvcFirst = reader.read_i32::<LittleEndian>()?;
+        let cpnBteLvc = reader.read_i32::<LittleEndian>()?;
+        let fcIslandFirst = reader.read_i32::<LittleEndian>()?;
+        let fcIslandLim = reader.read_i32::<LittleEndian>()?;
+        
+        // reading those pesky pairs now
+        let Cfclcb = reader.read_u16::<LittleEndian>()?;
+        let mut pairs: Vec<(i32, u32)> = Vec::with_capacity(Cfclcb as usize);
+
+        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x009A);       
+        let fcStshfOrig = reader.read_i32::<LittleEndian>()?;
+        let lcbStshfOrig = reader.read_u32::<LittleEndian>()?;
         let fcStshf = reader.read_i32::<LittleEndian>()?;
         let lcbStshf = reader.read_u32::<LittleEndian>()?;
-
-        reader.seek(SeekFrom::Start(0x01A2))?;
+        let fcPlcffndRef = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffndRef = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffndTxt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffndTxt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfandRef = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfandRef = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfandTxt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfandTxt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfsed = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfsed = reader.read_u32::<LittleEndian>()?;
+        let fcPlcpad = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcpad = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfphe = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfphe = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfglsy = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfglsy = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfglsy = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfglsy = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfhdd = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfhdd = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfbteChpx = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfbteChpx = reader.read_u32::<LittleEndian>()?;
+        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x0102);
+        let fcPlcfbtePapx = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfbtePapx = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfsea = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfsea = reader.read_u32::<LittleEndian>()?;
+        let fcsttbfffn = reader.read_i32::<LittleEndian>()?;
+        let lcbsttbfffn = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldMom = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldMom = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldHdr = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldHdr = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldFtn = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldFtn = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldAtn = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldAtn = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldMcr = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldMcr = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfbkmk = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfbkmk = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfbkf = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfbkf = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfbkl = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfbkl = reader.read_u32::<LittleEndian>()?;
+        let fcCmds = reader.read_i32::<LittleEndian>()?;
+        let lcbCmds = reader.read_u32::<LittleEndian>()?;
+        let fcPlcmcr = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcmcr = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfmcr = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfmcr = reader.read_u32::<LittleEndian>()?;
+        let fcPrDrvr = reader.read_i32::<LittleEndian>()?;
+        let lcbPrDrvr = reader.read_u32::<LittleEndian>()?;
+        let fcPrEnvPort = reader.read_i32::<LittleEndian>()?;
+        let lcbPrEnvPort = reader.read_u32::<LittleEndian>()?;
+        let fcPrEnvLand = reader.read_i32::<LittleEndian>()?;
+        let lcbPrEnvLand = reader.read_u32::<LittleEndian>()?;
+        let fcWss = reader.read_i32::<LittleEndian>()?;
+        let lcbWss = reader.read_u32::<LittleEndian>()?;
+        let fcDop = reader.read_i32::<LittleEndian>()?;
+        let lcbDop = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfAssoc = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfAssoc = reader.read_u32::<LittleEndian>()?;
         let fcClx = reader.read_i32::<LittleEndian>()?;
         let lcbClx = reader.read_i32::<LittleEndian>()?;
+        let fcPlcfpgdFtn = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpgdFtn = reader.read_u32::<LittleEndian>()?;
+        let fcAutosaveSource = reader.read_i32::<LittleEndian>()?;
+        let lcbAutosaveSource = reader.read_u32::<LittleEndian>()?;
+        let fcGrpXstAtnOwners = reader.read_i32::<LittleEndian>()?;
+        let lcbGrpXstAtnOwners = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfAtnBkmk = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfAtnBkmk = reader.read_u32::<LittleEndian>()?;
+        let fcPlcdoaMom = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcdoaMom = reader.read_u32::<LittleEndian>()?;
+        let fcPlcdoaHdr = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcdoaHdr = reader.read_u32::<LittleEndian>()?;
+        let fcPlcspaMom = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcspaMom = reader.read_u32::<LittleEndian>()?;
+        let fcPlcspaHdr = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcspaHdr = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfAtnbkf = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfAtnbkf = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfAtnbkl = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfAtnbkl = reader.read_u32::<LittleEndian>()?;
+        let fcPms = reader.read_i32::<LittleEndian>()?;
+        let lcbPms = reader.read_u32::<LittleEndian>()?;
+        let fcFormFldSttbs = reader.read_i32::<LittleEndian>()?;
+        let lcbFormFldSttbs = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfendRef = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfendRef = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfendTxt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfendTxt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldEdn = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldEdn = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpgdEdn = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpgdEdn = reader.read_u32::<LittleEndian>()?;
+        let fcDggInfo = reader.read_i32::<LittleEndian>()?;
+        let lcbDggInfo = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfRMark = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfRMark = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfCaption = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfCaption = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfAutoCaption = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfAutoCaption = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfWkb = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfWkb = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfSpl = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfSpl = reader.read_u32::<LittleEndian>()?;
+        let fcPlcftxbxTxt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcftxbxTxt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldTxbx = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldTxbx = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfhdrtxbxTxt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfhdrtxbxTxt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffldHdrTxbx = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffldHdrTxbx = reader.read_u32::<LittleEndian>()?;
+        let fcStwUser = reader.read_i32::<LittleEndian>()?;
+        let lcbStwUser = reader.read_u32::<LittleEndian>()?;
+        let fcSttbTtmbd = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbTtmbd = reader.read_u32::<LittleEndian>()?;
+        let fcCookieData = reader.read_i32::<LittleEndian>()?;
+        let lcbCookieData = reader.read_u32::<LittleEndian>()?;
 
-        reader.seek(SeekFrom::Start(0x02E2))?;
+        let mut fcpgdold_buff: [u8; 16] = [0; 16];
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcPgdMotherOldOld =  FCPGDOLD::from_bytes(&fcpgdold_buff);
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcpgdFtnOldOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcpgdEdnOldOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+
+        let fcSttbfIntlFld = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfIntlFld = reader.read_u32::<LittleEndian>()?;
+        let fcRouteSlip = reader.read_i32::<LittleEndian>()?;
+        let lcbRouteSlip = reader.read_u32::<LittleEndian>()?;
+        let fcSttbSavedBy = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbSavedBy = reader.read_u32::<LittleEndian>()?;
+        let fcSttbFnm = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbFnm = reader.read_u32::<LittleEndian>()?;
         let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
         let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
         let fcPlfLfo = reader.read_i32::<LittleEndian>()?;
         let lcbPlfLfo = reader.read_u32::<LittleEndian>()?;
+        let fcPlcftxbxBkd = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcftxbxBkd = reader.read_u32::<LittleEndian>()?;
+        let fcPlcftxbxHdrBkd = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcftxbxHdrBkd = reader.read_u32::<LittleEndian>()?;
+        let fcDocUndoWord9 = reader.read_i32::<LittleEndian>()?;
+        let lcbDocUndoWord9 = reader.read_u32::<LittleEndian>()?;
+        let fcRgbUse = reader.read_i32::<LittleEndian>()?;
+        let lcbRgbUse = reader.read_u32::<LittleEndian>()?;
+        let fcUsp = reader.read_i32::<LittleEndian>()?;
+        let lcbUsp = reader.read_u32::<LittleEndian>()?;
+        let fcUskf = reader.read_i32::<LittleEndian>()?;
+        let lcbUskf = reader.read_u32::<LittleEndian>()?;
+        let fcPlcupcRgbUse = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcupcRgbUse = reader.read_u32::<LittleEndian>()?;
+        let fcPlcupcUsp = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcupcUsp = reader.read_u32::<LittleEndian>()?;
+        let fcSttbGlsyStyle = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbGlsyStyle = reader.read_u32::<LittleEndian>()?;
+        let fcPlgosl = reader.read_i32::<LittleEndian>()?;
+        let lcbPlgosl = reader.read_u32::<LittleEndian>()?;
+        let fcPlcocx = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcocx = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBteLvc = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBteLvc = reader.read_u32::<LittleEndian>()?;
+        let dwLowDateTime = reader.read_u32::<LittleEndian>()?;
+        let dwHighDateTime = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfLvcPre10 = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfLvcPre10 = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfAsumy = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfAsumy = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfGram = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfGram = reader.read_u32::<LittleEndian>()?;
+        let fcSttbListNames = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbListNames = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfUssr = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfUssr = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfTch = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfTch = reader.read_u32::<LittleEndian>()?;
+        let fcRmdfThreading = reader.read_i32::<LittleEndian>()?;
+        let lcbRmdfThreading = reader.read_u32::<LittleEndian>()?;
+        let fcMid = reader.read_i32::<LittleEndian>()?;
+        let lcbMid = reader.read_u32::<LittleEndian>()?;
+        let fcSttbRgtplc = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbRgtplc = reader.read_u32::<LittleEndian>()?;
+        let fcMsoEnvelope = reader.read_i32::<LittleEndian>()?;
+        let lcbMsoEnvelope = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfLad = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfLad = reader.read_u32::<LittleEndian>()?;
+        let fcRgDofr = reader.read_i32::<LittleEndian>()?;
+        let lcbRgDofr = reader.read_u32::<LittleEndian>()?;
+        let fcPlcosl = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcosl = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfCookieOld = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfCookieOld = reader.read_u32::<LittleEndian>()?;
+
+        let mut fcpgdold_buff: [u8; 16] = [0; 16];
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcPgdMotherOld =  FCPGDOLD::from_bytes(&fcpgdold_buff);
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcpgdFtnOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcpgdEdnOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+
+        let fcUnused1 = reader.read_i32::<LittleEndian>()?;
+        let lcbUnused1 = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfPgp = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfPgp = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfuim = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfuim = reader.read_u32::<LittleEndian>()?;
+        let fcPlfguidUim = reader.read_i32::<LittleEndian>()?;
+        let lcbPlfguidUim = reader.read_u32::<LittleEndian>()?;
+        let fcAtrdExtra = reader.read_i32::<LittleEndian>()?;
+        let lcbAtrdExtra = reader.read_u32::<LittleEndian>()?;
+        let fcPlrsid = reader.read_i32::<LittleEndian>()?;
+        let lcbPlrsid = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfBkmkFactoid = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfBkmkFactoid = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBkfFactoid = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBkfFactoid = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfcookie = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfcookie = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBklFactoid = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBklFactoid = reader.read_u32::<LittleEndian>()?;
+        let fcFactoidData = reader.read_i32::<LittleEndian>()?;
+        let lcbFactoidData = reader.read_u32::<LittleEndian>()?;
+        let fcDocUndo = reader.read_i32::<LittleEndian>()?;
+        let lcbDocUndo = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfBkmkFcc = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfBkmkFcc = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBkfFcc = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBkfFcc = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBklFcc = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBklFcc = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfbkmkBPRepairs = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfbkmkBPRepairs = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfbkfBPRepairs = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfbkfBPRepairs = reader.read_u32::<LittleEndian>()?;
+        let fcPmsNew = reader.read_i32::<LittleEndian>()?;
+        let lcbPmsNew = reader.read_u32::<LittleEndian>()?;
+        let fcODSO = reader.read_i32::<LittleEndian>()?;
+        let lcbODSO = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpmiOldXP = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpmiOldXP = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpmiNewXP = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpmiNewXP = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpmiMixedXP = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpmiMixedXP = reader.read_u32::<LittleEndian>()?;
+        let fcEncryptedProps = reader.read_i32::<LittleEndian>()?;
+        let lcbEncryptedProps = reader.read_u32::<LittleEndian>()?;
+        let fcPlcffactoid = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcffactoid = reader.read_u32::<LittleEndian>()?;
+        let fcPlcflvcOldXP = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcflvcOldXP = reader.read_u32::<LittleEndian>()?;
+        let fcPlcflvcNewXP = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcflvcNewXP = reader.read_u32::<LittleEndian>()?;
+        let fcPlcflvcMixedXP = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcflvcMixedXP = reader.read_u32::<LittleEndian>()?;
+        let fcHplxsdr = reader.read_i32::<LittleEndian>()?;
+        let lcbHplxsdr = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfBkmkSdt = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfBkmkSdt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBkfSdt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBkfSdt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcBlkSdt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcBlkSdt = reader.read_u32::<LittleEndian>()?;
+        let fcCustomXForm = reader.read_i32::<LittleEndian>()?;
+        let lcbCustomXForm = reader.read_u32::<LittleEndian>()?;
+        let fcSttbfBkmkProt = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbfBkmkProt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBkfProt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBkfProt = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfBklProt = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfBklProt = reader.read_u32::<LittleEndian>()?;
+        let fcSttbProtUser = reader.read_i32::<LittleEndian>()?;
+        let lcbSttbProtUser = reader.read_u32::<LittleEndian>()?;
+        let fcPlcftpc = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcftpc = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpmiOld = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpmiOld = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpmiOldInline = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpmiOldInline = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpmiNew = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpmiNew = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfpmiNewInline = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfpmiNewInline = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfvcOld = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfvcOld = reader.read_u32::<LittleEndian>()?;
+        let fcPlcfvcOldInline = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcfvcOldInline = reader.read_u32::<LittleEndian>()?;
+        let fcPlcflvcNew = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcflvcNew = reader.read_u32::<LittleEndian>()?;
+        let fcPlcflvcNewInline = reader.read_i32::<LittleEndian>()?;
+        let lcbPlcflvcNewInline = reader.read_u32::<LittleEndian>()?;
+
+        let mut fcpgdold_buff: [u8; 16] = [0; 16];
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcpgdMother = FCPGDOLD::from_bytes(&fcpgdold_buff);
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcpgdFtn = FCPGDOLD::from_bytes(&fcpgdold_buff);
+        reader.read_exact(&mut fcpgdold_buff)?;
+        let fcpgdEdn = FCPGDOLD::from_bytes(&fcpgdold_buff);
+
+        let fcAfd = reader.read_i32::<LittleEndian>()?;
+        let lcbAfd = reader.read_u32::<LittleEndian>()?;
+        // reader.seek(SeekFrom::Start(0x0102))?; // Skip to get to fcPlcfbtePapx
+        // let fcPlcfbtePapx = reader.read_i32::<LittleEndian>()?;
+        // let lcbPlcfbtePapx = reader.read_u32::<LittleEndian>()?;
+
+        // reader.seek(SeekFrom::Start(0x00A2))?;
+        // let fcStshf = reader.read_i32::<LittleEndian>()?;
+        // let lcbStshf = reader.read_u32::<LittleEndian>()?;
+
+        // reader.seek(SeekFrom::Start(0x01A2))?;
+        // let fcClx = reader.read_i32::<LittleEndian>()?;
+        // let lcbClx = reader.read_i32::<LittleEndian>()?;
+
+        // reader.seek(SeekFrom::Start(0x02E2))?;
+        // let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
+        // let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
+        // let fcPlfLfo = reader.read_i32::<LittleEndian>()?;
+        // let lcbPlfLfo = reader.read_u32::<LittleEndian>()?;
+
+        let cswNew = reader.read_u16::<LittleEndian>()?;
+        let actualNFib = reader.read_u16::<LittleEndian>()?;
+        let cQuickSavesNew = reader.read_u16::<LittleEndian>()?;
 
         Ok(Fib {
             wIdent,
             nFib,
+            nProduct,
+            Lid,
+            pnNext,
+            fDot,
+            fGlsy,
             fComplex,
+            fHasPic,
+            cQuickSaves: cQuickSaves,
+            fEncrypted,
             fWhichTblStm,
-            fcPlcfbtePapx,
-            lcbPlcfbtePapx,
+            fReadOnlyRecommended,
+            fWriteReservation,
+            fExtChar,
+            fLoadOverride,
+            fFarEast,
+            fCrypto,
+            nFibBack,
+            lKey,
+            Envr: envr,
+            fMac,
+            fEmptySpecial,
+            fLoadOverridePage,
+            fFutureSavedUndo,
+            fWord97Saved,
+            fSpare0,
+            Chs,
+            chsTables,
             fcMin,
             fcMac,
+            Csw,
+            wMagicCreated,
+            wMagicRevised,
+            wMagicCreatedPrivate,
+            wMagicRevisedPrivate,
+            pnfbpChpFirst_W6: pnFbpChpFirst_W6,
+            pnChpFirst_W6,
+            cpnBteChp_W6,
+            pnFbpPapFirst_W6,
+            pnPapFirst_W6,
+            cpnBtePap_W6,
+            pnFbpLvcFirst_W6,
+            pnLvcFirst_W6,
+            cpnBteLvc_W6,
+            lidFE: LidFE,
+            Clw,
+            cbMac,
+            lProductCreated,
+            lProductRevised,
             ccpText,
             ccpFtn,
             ccpHdr: ccpHdd,
@@ -76,14 +506,314 @@ impl FromReader for Fib {
             ccpEdn,
             ccpTxbx,
             ccpHrdTxbx,
+            pnFbpChpFirst,
+            pnChpFirst,
+            cpnBteChp,
+            pnFbpPapFirst,
+            pnPapFirst,
+            cpnBtePap,
+            pnFbpLvcFirst,
+            pnLvcFirst,
+            cpnBteLvc,
+            fcIslandFirst,
+            fcIslandLim,
+            Cfclcb,
+            fcStshfOrig,
+            lcbStshfOrig,
             fcStshf,
             lcbStshf,
+            fcPlcffndRef,
+            lcbPlcffndRef,
+            fcPlcffndTxt,
+            lcbPlcffndTxt,
+            fcPlcfandRef,
+            lcbPlcfandRef,
+            fcPlcfandTxt,
+            lcbPlcfandTxt,
+            fcPlcfsed,
+            lcbPlcfsed,
+            fcPlcpad,
+            lcbPlcpad,
+            fcPlcfphe,
+            lcbPlcfphe,
+            fcSttbfglsy,
+            lcbSttbfglsy,
+            fcPlcfglsy,
+            lcbPlcfglsy,
+            fcPlcfhdd,
+            lcbPlcfhdd,
+            fcPlcfbteChpx,
+            lcbPlcfbteChpx,
+            fcPlcfbtePapx,
+            lcbPlcfbtePapx,
+            fcPlcfsea,
+            lcbPlcfsea,
+            fcsttbfffn,
+            lcbsttbfffn,
+            fcPlcffldMom,
+            lcbPlcffldMom,
+            fcPlcffldHdr,
+            lcbPlcffldHdr,
+            fcPlcffldFtn,
+            lcbPlcffldFtn,
+            fcPlcffldAtn,
+            lcbPlcffldAtn,
+            fcPlcffldMcr,
+            lcbPlcffldMcr,
+            fcSttbfbkmk,
+            lcbSttbfbkmk,
+            fcPlcfbkf,
+            lcbPlcfbkf,
+            fcPlcfbkl,
+            lcbPlcfbkl,
+            fcCmds,
+            lcbCmds,
+            fcPlcmcr,
+            lcbPlcmcr,
+            fcSttbfmcr,
+            lcbSttbfmcr,
+            fcPrDrvr,
+            lcbPrDrvr,
+            fcPrEnvPort,
+            lcbPrEnvPort,
+            fcPrEnvLand,
+            lcbPrEnvLand,
+            fcWss,
+            lcbWss,
+            fcDop,
+            lcbDop,
+            fcSttbfAssoc,
+            lcbSttbfAssoc,
             fcClx,
             lcbClx,
+            fcPlcfpgdFtn,
+            lcbPlcfpgdFtn,
+            fcAutosaveSource,
+            lcbAutosaveSource,
+            fcGrpXstAtnOwners,
+            lcbGrpXstAtnOwners,
+            fcSttbfAtnBkmk,
+            lcbSttbfAtnBkmk,
+            fcPlcdoaMom,
+            lcbPlcdoaMom,
+            fcPlcdoaHdr,
+            lcbPlcdoaHdr,
+            fcPlcspaMom,
+            lcbPlcspaMom,
+            fcPlcspaHdr,
+            lcbPlcspaHdr,
+            fcPlcfAtnbkf,
+            lcbPlcfAtnbkf,
+            fcPlcfAtnbkl,
+            lcbPlcfAtnbkl,
+            fcPms,
+            lcbPms,
+            fcFormFldSttbs,
+            lcbFormFldSttbs,
+            fcPlcfendRef,
+            lcbPlcfendRef,
+            fcPlcfendTxt,
+            lcbPlcfendTxt,
+            fcPlcffldEdn,
+            lcbPlcffldEdn,
+            fcPlcfpgdEdn,
+            lcbPlcfpgdEdn,
+            fcDggInfo,
+            lcbDggInfo,
+            fcSttbfRMark,
+            lcbSttbfRMark,
+            fcSttbfCaption,
+            lcbSttbfCaption,
+            fcSttbfAutoCaption,
+            lcbSttbfAutoCaption,
+            fcPlcfWkb,
+            lcbPlcfWkb,
+            fcPlcfSpl,
+            lcbPlcfSpl,
+            fcPlcftxbxTxt,
+            lcbPlcftxbxTxt,
+            fcPlcffldTxbx,
+            lcbPlcffldTxbx,
+            fcPlcfhdrtxbxTxt,
+            lcbPlcfhdrtxbxTxt,
+            fcPlcffldHdrTxbx,
+            lcbPlcffldHdrTxbx,
+            fcStwUser,
+            lcbStwUser,
+            fcSttbTtmbd,
+            lcbSttbTtmbd,
+            fcCookieData,
+            lcbCookieData,
+            fcPgdMotherOldOld,
+            fcpgdFtnOldOld,
+            fcpgdEdnOldOld,
+            fcSttbfIntlFld,
+            lcbSttbfIntlFld,
+            fcRouteSlip,
+            lcbRouteSlip,
+            fcSttbSavedBy,
+            lcbSttbSavedBy,
+            fcSttbFnm,
+            lcbSttbFnm,
             fcPlcfLst,
             lcbPlcfLst,
             fcPlfLfo,
             lcbPlfLfo,
+            fcPlcftxbxBkd,
+            lcbPlcftxbxBkd,
+            fcPlcftxbxHdrBkd,
+            lcbPlcftxbxHdrBkd,
+            fcDocUndoWord9,
+            lcbDocUndoWord9,
+            fcRgbUse,
+            lcbRgbUse,
+            fcUsp,
+            lcbUsp,
+            fcUskf,
+            lcbUskf,
+            fcPlcupcRgbUse,
+            lcbPlcupcRgbUse,
+            fcPlcupcUsp,
+            lcbPlcupcUsp,
+            fcSttbGlsyStyle,
+            lcbSttbGlsyStyle,
+            fcPlgosl,
+            lcbPlgosl,
+            fcPlcocx,
+            lcbPlcocx,
+            fcPlcfBteLvc,
+            lcbPlcfBteLvc,
+            dwLowDateTime,
+            dwHighDateTime,
+            fcPlcfLvcPre10,
+            lcbPlcfLvcPre10,
+            fcPlcfAsumy,
+            lcbPlcfAsumy,
+            fcPlcfGram,
+            lcbPlcfGram,
+            fcSttbListNames,
+            lcbSttbListNames,
+            fcSttbfUssr,
+            lcbSttbfUssr,
+            fcPlcfTch,
+            lcbPlcfTch,
+            fcRmdfThreading,
+            lcbRmdfThreading,
+            fcMid,
+            lcbMid,
+            fcSttbRgtplc,
+            lcbSttbRgtplc,
+            fcMsoEnvelope,
+            lcbMsoEnvelope,
+            fcPlcfLad,
+            lcbPlcfLad,
+            fcRgDofr,
+            lcbRgDofr,
+            fcPlcosl,
+            lcbPlcosl,
+            fcPlcfCookieOld,
+            lcbPlcfCookieOld,
+            fcPgdMotherOld,
+            fcpgdFtnOld,
+            fcpgdEdnOld,
+            fcUnused1,
+            lcbUnused1,
+            fcPlcfPgp,
+            lcbPlcfPgp,
+            fcPlcfuim,
+            lcbPlcfuim,
+            fcPlfguidUim,
+            lcbPlfguidUim,
+            fcAtrdExtra,
+            lcbAtrdExtra,
+            fcPlrsid,
+            lcbPlrsid,
+            fcSttbfBkmkFactoid,
+            lcbSttbfBkmkFactoid,
+            fcPlcfBkfFactoid,
+            lcbPlcfBkfFactoid,
+            fcPlcfcookie,
+            lcbPlcfcookie,
+            fcPlcfBklFactoid,
+            lcbPlcfBklFactoid,
+            fcFactoidData,
+            lcbFactoidData,
+            fcDocUndo,
+            lcbDocUndo,
+            fcSttbfBkmkFcc,
+            lcbSttbfBkmkFcc,
+            fcPlcfBkfFcc,
+            lcbPlcfBkfFcc,
+            fcPlcfBklFcc,
+            lcbPlcfBklFcc,
+            fcSttbfbkmkBPRepairs,
+            lcbSttbfbkmkBPRepairs,
+            fcPlcfbkfBPRepairs,
+            lcbPlcfbkfBPRepairs,
+            fcPmsNew,
+            lcbPmsNew,
+            fcODSO,
+            lcbODSO,
+            fcPlcfpmiOldXP,
+            lcbPlcfpmiOldXP,
+            fcPlcfpmiNewXP,
+            lcbPlcfpmiNewXP,
+            fcPlcfpmiMixedXP,
+            lcbPlcfpmiMixedXP,
+            fcEncryptedProps,
+            lcbEncryptedProps,
+            fcPlcffactoid,
+            lcbPlcffactoid,
+            fcPlcflvcOldXP,
+            lcbPlcflvcOldXP,
+            fcPlcflvcNewXP,
+            lcbPlcflvcNewXP,
+            fcPlcflvcMixedXP,
+            lcbPlcflvcMixedXP,
+            fcHplxsdr,
+            lcbHplxsdr,
+            fcSttbfBkmkSdt,
+            lcbSttbfBkmkSdt,
+            fcPlcfBkfSdt,
+            lcbPlcfBkfSdt,
+            fcPlcBlkSdt,
+            lcbPlcBlkSdt,
+            fcCustomXForm,
+            lcbCustomXForm,
+            fcSttbfBkmkProt,
+            lcbSttbfBkmkProt,
+            fcPlcfBkfProt,
+            lcbPlcfBkfProt,
+            fcPlcfBklProt,
+            lcbPlcfBklProt,
+            fcSttbProtUser,
+            lcbSttbProtUser,
+            fcPlcftpc,
+            lcbPlcftpc,
+            fcPlcfpmiOld,
+            lcbPlcfpmiOld,
+            fcPlcfpmiOldInline,
+            lcbPlcfpmiOldInline,
+            fcPlcfpmiNew,
+            lcbPlcfpmiNew,
+            fcPlcfpmiNewInline,
+            lcbPlcfpmiNewInline,
+            fcPlcfvcOld,
+            lcbPlcfvcOld,
+            fcPlcfvcOldInline,
+            lcbPlcfvcOldInline,
+            fcPlcflvcNew,
+            lcbPlcflvcNew,
+            fcPlcflvcNewInline,
+            lcbPlcflvcNewInline,
+            fcpgdMother,
+            fcpgdFtn,
+            fcpgdEdn,
+            fcAfd,
+            lcbAfd,
+            cswNew,
+            actualNFib,
+            cQuickSavesNew,
         })
     }
 }

@@ -40,6 +40,27 @@ impl<T: FromCStruct> PLCF<T> {
     }
 }
 
+impl FromCStruct for FCPGDOLD {
+    fn c_size() -> usize {
+        4 * 4
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Self {
+        assert_eq!(bytes.len(), 4 * 4);
+        let fc_pgd_mother = i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        let lcb_pgd_mother = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+        let fc_bkd = i32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+        let lcb_bkd = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
+
+        FCPGDOLD {
+            fcPgd: fc_pgd_mother,
+            lcbPgd: lcb_pgd_mother,
+            fcBkd: fc_bkd,
+            lcbBkd: lcb_bkd,
+        }
+    }
+}
+
 impl FromCStruct for PCD {
     fn c_size() -> usize {
         8

@@ -424,8 +424,8 @@ impl WordDocument {
             };
 
             logical_structures.push(ComparisonLogicalStructure {
-                ref_structure: Some(ref_structure),
-                comp_structure: Some(other_structure),
+                ref_structure: Some(other_structure),
+                comp_structure: Some(ref_structure),
                 structure_differences: bool_arr,
                 substructure_differences: substructure_arr,
             });
