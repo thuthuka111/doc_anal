@@ -274,7 +274,7 @@ impl ToStructure for Fib {
             ("lcbPlgosl", ""),
             ("fcPlcocx", ""),
             ("lcbPlcocx", ""),
-            ("fcPlcfBteLvc", ""),
+            ("fcPlcfBteLvc", "Offset in table stream of character property bin"),
             ("lcbPlcfBteLvc", ""),
             ("dwLowDateTime", ""),
             ("dwHighDateTime", ""),
@@ -404,7 +404,7 @@ impl ToStructure for Fib {
             ("fcpgdEdn", ""),
             ("fcAfd", ""),
             ("lcbAfd", ""),
-            ("cswNew", ""),
+            ("cswNew", "The number of entries in rgswNew[]"),
             ("actualNFib", "The actual nFib"),
             ("cQuickSavesNew", ""),
         ];

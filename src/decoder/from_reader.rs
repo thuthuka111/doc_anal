@@ -11,443 +11,988 @@ pub trait FromReader: Sized {
 }
 
 impl FromReader for Fib {
-    #[allow(non_snake_case)]
     fn from_reader<R: Read + Seek>(reader: &mut R) -> io::Result<Self> {
-        reader.seek(SeekFrom::Start(0))?;
+        Ok(fib_from_read_impl(reader)?.0)
+    }
+}
 
-        let wIdent = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
-        let nFib = reader.read_u16::<LittleEndian>()?;
-        let nProduct = reader.read_u16::<LittleEndian>()?;
-        let Lid = reader.read_u16::<LittleEndian>()?;
-        let pnNext = reader.read_i16::<LittleEndian>()?;
+#[allow(non_snake_case)]
+pub fn fib_from_read_impl<R: Read + Seek>(
+    reader: &mut R,
+) -> io::Result<(Fib, Vec<(i32, u32, String)>)> {
+    reader.seek(SeekFrom::Start(0))?;
 
-        reader.seek(SeekFrom::Start(0x0A))?;
-        let bitfield = reader.read_u16::<LittleEndian>()?;
-        let fDot = (bitfield & 0x0001) == 0x0001;
-        let fGlsy = (bitfield & 0x0002) == 0x0002;
-        let fComplex = (bitfield & 0x0004) == 0x0004;
-        let fHasPic = (bitfield & 0x0008) == 0x0008;
-        let cQuickSaves = ((bitfield & 0x00F0) >> 4) as u8;
-        let fEncrypted = (bitfield & 0x0100) == 0x0100;
-        let fWhichTblStm = (bitfield & 0x200) == 0x200;
-        let fReadOnlyRecommended = (bitfield & 0x0400) == 0x0400;
-        let fWriteReservation = (bitfield & 0x0800) == 0x0800;
-        let fExtChar = (bitfield & 0x1000) == 0x1000;
-        let fLoadOverride = (bitfield & 0x2000) == 0x2000;
-        let fFarEast = (bitfield & 0x4000) == 0x4000;
-        let fCrypto = (bitfield & 0x8000) == 0x8000;
+    let wIdent = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+    let nFib = reader.read_u16::<LittleEndian>()?;
+    let nProduct = reader.read_u16::<LittleEndian>()?;
+    let Lid = reader.read_u16::<LittleEndian>()?;
+    let pnNext = reader.read_i16::<LittleEndian>()?;
 
-        let nFibBack = reader.read_u16::<LittleEndian>()?;
-        let lKey = Bytes::from_u32(reader.read_u32::<LittleEndian>()?);
-        let envr = reader.read_u8()?;
+    reader.seek(SeekFrom::Start(0x0A))?;
+    let bitfield = reader.read_u16::<LittleEndian>()?;
+    let fDot = (bitfield & 0x0001) == 0x0001;
+    let fGlsy = (bitfield & 0x0002) == 0x0002;
+    let fComplex = (bitfield & 0x0004) == 0x0004;
+    let fHasPic = (bitfield & 0x0008) == 0x0008;
+    let cQuickSaves = ((bitfield & 0x00F0) >> 4) as u8;
+    let fEncrypted = (bitfield & 0x0100) == 0x0100;
+    let fWhichTblStm = (bitfield & 0x200) == 0x200;
+    let fReadOnlyRecommended = (bitfield & 0x0400) == 0x0400;
+    let fWriteReservation = (bitfield & 0x0800) == 0x0800;
+    let fExtChar = (bitfield & 0x1000) == 0x1000;
+    let fLoadOverride = (bitfield & 0x2000) == 0x2000;
+    let fFarEast = (bitfield & 0x4000) == 0x4000;
+    let fCrypto = (bitfield & 0x8000) == 0x8000;
 
-        let bitfield = reader.read_u8()?;
-        let fMac = (bitfield & 0x01) == 0x01;
-        let fEmptySpecial = (bitfield & 0x02) == 0x02;
-        let fLoadOverridePage = (bitfield & 0x04) == 0x04;
-        let fFutureSavedUndo = (bitfield & 0x08) == 0x08;
-        let fWord97Saved = (bitfield & 0x10) == 0x10;
-        let fSpare0: [bool; 3] = [
-            (bitfield & 0x20) == 0x20,
-            (bitfield & 0x40) == 0x40,
-            (bitfield & 0x80) == 0x80,
-        ];
+    let nFibBack = reader.read_u16::<LittleEndian>()?;
+    let lKey = Bytes::from_u32(reader.read_u32::<LittleEndian>()?);
+    let envr = reader.read_u8()?;
 
-        let Chs = reader.read_u16::<LittleEndian>()?;
-        let chsTables = reader.read_u16::<LittleEndian>()?;
+    let bitfield = reader.read_u8()?;
+    let fMac = (bitfield & 0x01) == 0x01;
+    let fEmptySpecial = (bitfield & 0x02) == 0x02;
+    let fLoadOverridePage = (bitfield & 0x04) == 0x04;
+    let fFutureSavedUndo = (bitfield & 0x08) == 0x08;
+    let fWord97Saved = (bitfield & 0x10) == 0x10;
+    let fSpare0: [bool; 3] = [
+        (bitfield & 0x20) == 0x20,
+        (bitfield & 0x40) == 0x40,
+        (bitfield & 0x80) == 0x80,
+    ];
 
-        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x0018);
-        reader.seek(SeekFrom::Start(0x0018))?;
-        let fcMin = reader.read_i32::<LittleEndian>()?;
-        let fcMac = reader.read_i32::<LittleEndian>()?;
+    let Chs = reader.read_u16::<LittleEndian>()?;
+    let chsTables = reader.read_u16::<LittleEndian>()?;
 
-        let Csw = reader.read_u16::<LittleEndian>()?;
-        
-        let wMagicCreated = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
-        let wMagicRevised = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
-        let wMagicCreatedPrivate = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
-        let wMagicRevisedPrivate = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+    assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x0018);
+    reader.seek(SeekFrom::Start(0x0018))?;
+    let fcMin = reader.read_i32::<LittleEndian>()?;
+    let fcMac = reader.read_i32::<LittleEndian>()?;
 
-        let pnFbpChpFirst_W6 = reader.read_i16::<LittleEndian>()?;
-        let pnChpFirst_W6 = reader.read_i16::<LittleEndian>()?;
-        let cpnBteChp_W6 = reader.read_i16::<LittleEndian>()?;
-        let pnFbpPapFirst_W6 = reader.read_i16::<LittleEndian>()?;
-        let pnPapFirst_W6 = reader.read_i16::<LittleEndian>()?;
-        let cpnBtePap_W6 = reader.read_i16::<LittleEndian>()?;
-        let pnFbpLvcFirst_W6 = reader.read_i16::<LittleEndian>()?;
-        let pnLvcFirst_W6 = reader.read_i16::<LittleEndian>()?;
-        let cpnBteLvc_W6 = reader.read_i16::<LittleEndian>()?;
-        let LidFE = reader.read_i16::<LittleEndian>()?;
+    let Csw = reader.read_u16::<LittleEndian>()?;
 
-        let Clw = reader.read_u16::<LittleEndian>()?;
-        let cbMac = reader.read_i32::<LittleEndian>()?;
-        let lProductCreated = Bytes::from_i32(reader.read_i32::<LittleEndian>()?);
-        let lProductRevised = Bytes::from_i32(reader.read_i32::<LittleEndian>()?);
+    let wMagicCreated = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+    let wMagicRevised = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+    let wMagicCreatedPrivate = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
+    let wMagicRevisedPrivate = Bytes::from_u16(reader.read_u16::<LittleEndian>()?);
 
-        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x004C);
-        reader.seek(SeekFrom::Start(0x004C))?;
-        let ccpText = reader.read_i32::<LittleEndian>()?;
-        let ccpFtn = reader.read_i32::<LittleEndian>()?;
-        let ccpHdd = reader.read_i32::<LittleEndian>()?;
-        let ccpMcr = reader.read_i32::<LittleEndian>()?;
-        let ccpAtn = reader.read_i32::<LittleEndian>()?;
-        let ccpEdn = reader.read_i32::<LittleEndian>()?;
-        let ccpTxbx = reader.read_i32::<LittleEndian>()?;
-        let ccpHrdTxbx = reader.read_i32::<LittleEndian>()?;
-        let pnFbpChpFirst = reader.read_i32::<LittleEndian>()?;
+    let pnFbpChpFirst_W6 = reader.read_i16::<LittleEndian>()?;
+    let pnChpFirst_W6 = reader.read_i16::<LittleEndian>()?;
+    let cpnBteChp_W6 = reader.read_i16::<LittleEndian>()?;
+    let pnFbpPapFirst_W6 = reader.read_i16::<LittleEndian>()?;
+    let pnPapFirst_W6 = reader.read_i16::<LittleEndian>()?;
+    let cpnBtePap_W6 = reader.read_i16::<LittleEndian>()?;
+    let pnFbpLvcFirst_W6 = reader.read_i16::<LittleEndian>()?;
+    let pnLvcFirst_W6 = reader.read_i16::<LittleEndian>()?;
+    let cpnBteLvc_W6 = reader.read_i16::<LittleEndian>()?;
+    let LidFE = reader.read_i16::<LittleEndian>()?;
 
-        let pnChpFirst = reader.read_i32::<LittleEndian>()?;
-        let cpnBteChp = reader.read_i32::<LittleEndian>()?;
-        let pnFbpPapFirst = reader.read_i32::<LittleEndian>()?;
-        let pnPapFirst = reader.read_i32::<LittleEndian>()?;
-        let cpnBtePap = reader.read_i32::<LittleEndian>()?;
+    let Clw = reader.read_u16::<LittleEndian>()?;
+    let cbMac = reader.read_i32::<LittleEndian>()?;
+    let lProductCreated = reader.read_i32::<LittleEndian>()?;
+    let lProductRevised = reader.read_i32::<LittleEndian>()?;
+    assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x004C);
+    reader.seek(SeekFrom::Start(0x004C))?;
+    let ccpText = reader.read_i32::<LittleEndian>()?;
+    let ccpFtn = reader.read_i32::<LittleEndian>()?;
+    let ccpHdd = reader.read_i32::<LittleEndian>()?;
+    let ccpMcr = reader.read_i32::<LittleEndian>()?;
+    let ccpAtn = reader.read_i32::<LittleEndian>()?;
+    let ccpEdn = reader.read_i32::<LittleEndian>()?;
+    let ccpTxbx = reader.read_i32::<LittleEndian>()?;
+    let ccpHrdTxbx = reader.read_i32::<LittleEndian>()?;
+    let pnFbpChpFirst = reader.read_i32::<LittleEndian>()?;
 
-        let pnFbpLvcFirst = reader.read_i32::<LittleEndian>()?;
-        let pnLvcFirst = reader.read_i32::<LittleEndian>()?;
-        let cpnBteLvc = reader.read_i32::<LittleEndian>()?;
-        let fcIslandFirst = reader.read_i32::<LittleEndian>()?;
-        let fcIslandLim = reader.read_i32::<LittleEndian>()?;
-        
-        // reading those pesky pairs now
-        let Cfclcb = reader.read_u16::<LittleEndian>()?;
-        let mut pairs: Vec<(i32, u32)> = Vec::with_capacity(Cfclcb as usize);
+    let pnChpFirst = reader.read_i32::<LittleEndian>()?;
+    let cpnBteChp = reader.read_i32::<LittleEndian>()?;
+    let pnFbpPapFirst = reader.read_i32::<LittleEndian>()?;
+    let pnPapFirst = reader.read_i32::<LittleEndian>()?;
+    let cpnBtePap = reader.read_i32::<LittleEndian>()?;
 
-        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x009A);       
-        let fcStshfOrig = reader.read_i32::<LittleEndian>()?;
-        let lcbStshfOrig = reader.read_u32::<LittleEndian>()?;
-        let fcStshf = reader.read_i32::<LittleEndian>()?;
-        let lcbStshf = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffndRef = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffndRef = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffndTxt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffndTxt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfandRef = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfandRef = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfandTxt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfandTxt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfsed = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfsed = reader.read_u32::<LittleEndian>()?;
-        let fcPlcpad = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcpad = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfphe = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfphe = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfglsy = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfglsy = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfglsy = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfglsy = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfhdd = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfhdd = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfbteChpx = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfbteChpx = reader.read_u32::<LittleEndian>()?;
-        assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x0102);
-        let fcPlcfbtePapx = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfbtePapx = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfsea = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfsea = reader.read_u32::<LittleEndian>()?;
-        let fcsttbfffn = reader.read_i32::<LittleEndian>()?;
-        let lcbsttbfffn = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldMom = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldMom = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldHdr = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldHdr = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldFtn = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldFtn = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldAtn = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldAtn = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldMcr = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldMcr = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfbkmk = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfbkmk = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfbkf = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfbkf = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfbkl = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfbkl = reader.read_u32::<LittleEndian>()?;
-        let fcCmds = reader.read_i32::<LittleEndian>()?;
-        let lcbCmds = reader.read_u32::<LittleEndian>()?;
-        let fcPlcmcr = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcmcr = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfmcr = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfmcr = reader.read_u32::<LittleEndian>()?;
-        let fcPrDrvr = reader.read_i32::<LittleEndian>()?;
-        let lcbPrDrvr = reader.read_u32::<LittleEndian>()?;
-        let fcPrEnvPort = reader.read_i32::<LittleEndian>()?;
-        let lcbPrEnvPort = reader.read_u32::<LittleEndian>()?;
-        let fcPrEnvLand = reader.read_i32::<LittleEndian>()?;
-        let lcbPrEnvLand = reader.read_u32::<LittleEndian>()?;
-        let fcWss = reader.read_i32::<LittleEndian>()?;
-        let lcbWss = reader.read_u32::<LittleEndian>()?;
-        let fcDop = reader.read_i32::<LittleEndian>()?;
-        let lcbDop = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfAssoc = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfAssoc = reader.read_u32::<LittleEndian>()?;
-        let fcClx = reader.read_i32::<LittleEndian>()?;
-        let lcbClx = reader.read_i32::<LittleEndian>()?;
-        let fcPlcfpgdFtn = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpgdFtn = reader.read_u32::<LittleEndian>()?;
-        let fcAutosaveSource = reader.read_i32::<LittleEndian>()?;
-        let lcbAutosaveSource = reader.read_u32::<LittleEndian>()?;
-        let fcGrpXstAtnOwners = reader.read_i32::<LittleEndian>()?;
-        let lcbGrpXstAtnOwners = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfAtnBkmk = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfAtnBkmk = reader.read_u32::<LittleEndian>()?;
-        let fcPlcdoaMom = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcdoaMom = reader.read_u32::<LittleEndian>()?;
-        let fcPlcdoaHdr = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcdoaHdr = reader.read_u32::<LittleEndian>()?;
-        let fcPlcspaMom = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcspaMom = reader.read_u32::<LittleEndian>()?;
-        let fcPlcspaHdr = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcspaHdr = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfAtnbkf = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfAtnbkf = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfAtnbkl = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfAtnbkl = reader.read_u32::<LittleEndian>()?;
-        let fcPms = reader.read_i32::<LittleEndian>()?;
-        let lcbPms = reader.read_u32::<LittleEndian>()?;
-        let fcFormFldSttbs = reader.read_i32::<LittleEndian>()?;
-        let lcbFormFldSttbs = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfendRef = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfendRef = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfendTxt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfendTxt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldEdn = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldEdn = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpgdEdn = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpgdEdn = reader.read_u32::<LittleEndian>()?;
-        let fcDggInfo = reader.read_i32::<LittleEndian>()?;
-        let lcbDggInfo = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfRMark = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfRMark = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfCaption = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfCaption = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfAutoCaption = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfAutoCaption = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfWkb = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfWkb = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfSpl = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfSpl = reader.read_u32::<LittleEndian>()?;
-        let fcPlcftxbxTxt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcftxbxTxt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldTxbx = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldTxbx = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfhdrtxbxTxt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfhdrtxbxTxt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffldHdrTxbx = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffldHdrTxbx = reader.read_u32::<LittleEndian>()?;
-        let fcStwUser = reader.read_i32::<LittleEndian>()?;
-        let lcbStwUser = reader.read_u32::<LittleEndian>()?;
-        let fcSttbTtmbd = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbTtmbd = reader.read_u32::<LittleEndian>()?;
-        let fcCookieData = reader.read_i32::<LittleEndian>()?;
-        let lcbCookieData = reader.read_u32::<LittleEndian>()?;
+    let pnFbpLvcFirst = reader.read_i32::<LittleEndian>()?;
+    let pnLvcFirst = reader.read_i32::<LittleEndian>()?;
+    let cpnBteLvc = reader.read_i32::<LittleEndian>()?;
+    let fcIslandFirst = reader.read_i32::<LittleEndian>()?;
+    let fcIslandLim = reader.read_i32::<LittleEndian>()?;
 
-        let mut fcpgdold_buff: [u8; 16] = [0; 16];
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcPgdMotherOldOld =  FCPGDOLD::from_bytes(&fcpgdold_buff);
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcpgdFtnOldOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcpgdEdnOldOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    // reading those pesky pairs now
+    let Cfclcb = reader.read_u16::<LittleEndian>()?;
+    let mut pairs: Vec<(i32, u32, String)> = Vec::with_capacity(Cfclcb as usize);
 
-        let fcSttbfIntlFld = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfIntlFld = reader.read_u32::<LittleEndian>()?;
-        let fcRouteSlip = reader.read_i32::<LittleEndian>()?;
-        let lcbRouteSlip = reader.read_u32::<LittleEndian>()?;
-        let fcSttbSavedBy = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbSavedBy = reader.read_u32::<LittleEndian>()?;
-        let fcSttbFnm = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbFnm = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
-        let fcPlfLfo = reader.read_i32::<LittleEndian>()?;
-        let lcbPlfLfo = reader.read_u32::<LittleEndian>()?;
-        let fcPlcftxbxBkd = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcftxbxBkd = reader.read_u32::<LittleEndian>()?;
-        let fcPlcftxbxHdrBkd = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcftxbxHdrBkd = reader.read_u32::<LittleEndian>()?;
-        let fcDocUndoWord9 = reader.read_i32::<LittleEndian>()?;
-        let lcbDocUndoWord9 = reader.read_u32::<LittleEndian>()?;
-        let fcRgbUse = reader.read_i32::<LittleEndian>()?;
-        let lcbRgbUse = reader.read_u32::<LittleEndian>()?;
-        let fcUsp = reader.read_i32::<LittleEndian>()?;
-        let lcbUsp = reader.read_u32::<LittleEndian>()?;
-        let fcUskf = reader.read_i32::<LittleEndian>()?;
-        let lcbUskf = reader.read_u32::<LittleEndian>()?;
-        let fcPlcupcRgbUse = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcupcRgbUse = reader.read_u32::<LittleEndian>()?;
-        let fcPlcupcUsp = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcupcUsp = reader.read_u32::<LittleEndian>()?;
-        let fcSttbGlsyStyle = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbGlsyStyle = reader.read_u32::<LittleEndian>()?;
-        let fcPlgosl = reader.read_i32::<LittleEndian>()?;
-        let lcbPlgosl = reader.read_u32::<LittleEndian>()?;
-        let fcPlcocx = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcocx = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBteLvc = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBteLvc = reader.read_u32::<LittleEndian>()?;
-        let dwLowDateTime = reader.read_u32::<LittleEndian>()?;
-        let dwHighDateTime = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfLvcPre10 = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfLvcPre10 = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfAsumy = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfAsumy = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfGram = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfGram = reader.read_u32::<LittleEndian>()?;
-        let fcSttbListNames = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbListNames = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfUssr = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfUssr = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfTch = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfTch = reader.read_u32::<LittleEndian>()?;
-        let fcRmdfThreading = reader.read_i32::<LittleEndian>()?;
-        let lcbRmdfThreading = reader.read_u32::<LittleEndian>()?;
-        let fcMid = reader.read_i32::<LittleEndian>()?;
-        let lcbMid = reader.read_u32::<LittleEndian>()?;
-        let fcSttbRgtplc = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbRgtplc = reader.read_u32::<LittleEndian>()?;
-        let fcMsoEnvelope = reader.read_i32::<LittleEndian>()?;
-        let lcbMsoEnvelope = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfLad = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfLad = reader.read_u32::<LittleEndian>()?;
-        let fcRgDofr = reader.read_i32::<LittleEndian>()?;
-        let lcbRgDofr = reader.read_u32::<LittleEndian>()?;
-        let fcPlcosl = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcosl = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfCookieOld = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfCookieOld = reader.read_u32::<LittleEndian>()?;
+    assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x009A);
+    let fcStshfOrig = reader.read_i32::<LittleEndian>()?;
+    let lcbStshfOrig = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcStshfOrig, lcbStshfOrig, "Original STSH structure".into()));
 
-        let mut fcpgdold_buff: [u8; 16] = [0; 16];
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcPgdMotherOld =  FCPGDOLD::from_bytes(&fcpgdold_buff);
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcpgdFtnOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcpgdEdnOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    let fcStshf = reader.read_i32::<LittleEndian>()?;
+    let lcbStshf = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcStshf, lcbStshf, "STSH structure".into()));
 
-        let fcUnused1 = reader.read_i32::<LittleEndian>()?;
-        let lcbUnused1 = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfPgp = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfPgp = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfuim = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfuim = reader.read_u32::<LittleEndian>()?;
-        let fcPlfguidUim = reader.read_i32::<LittleEndian>()?;
-        let lcbPlfguidUim = reader.read_u32::<LittleEndian>()?;
-        let fcAtrdExtra = reader.read_i32::<LittleEndian>()?;
-        let lcbAtrdExtra = reader.read_u32::<LittleEndian>()?;
-        let fcPlrsid = reader.read_i32::<LittleEndian>()?;
-        let lcbPlrsid = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfBkmkFactoid = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfBkmkFactoid = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBkfFactoid = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBkfFactoid = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfcookie = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfcookie = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBklFactoid = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBklFactoid = reader.read_u32::<LittleEndian>()?;
-        let fcFactoidData = reader.read_i32::<LittleEndian>()?;
-        let lcbFactoidData = reader.read_u32::<LittleEndian>()?;
-        let fcDocUndo = reader.read_i32::<LittleEndian>()?;
-        let lcbDocUndo = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfBkmkFcc = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfBkmkFcc = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBkfFcc = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBkfFcc = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBklFcc = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBklFcc = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfbkmkBPRepairs = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfbkmkBPRepairs = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfbkfBPRepairs = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfbkfBPRepairs = reader.read_u32::<LittleEndian>()?;
-        let fcPmsNew = reader.read_i32::<LittleEndian>()?;
-        let lcbPmsNew = reader.read_u32::<LittleEndian>()?;
-        let fcODSO = reader.read_i32::<LittleEndian>()?;
-        let lcbODSO = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpmiOldXP = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpmiOldXP = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpmiNewXP = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpmiNewXP = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpmiMixedXP = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpmiMixedXP = reader.read_u32::<LittleEndian>()?;
-        let fcEncryptedProps = reader.read_i32::<LittleEndian>()?;
-        let lcbEncryptedProps = reader.read_u32::<LittleEndian>()?;
-        let fcPlcffactoid = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcffactoid = reader.read_u32::<LittleEndian>()?;
-        let fcPlcflvcOldXP = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcflvcOldXP = reader.read_u32::<LittleEndian>()?;
-        let fcPlcflvcNewXP = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcflvcNewXP = reader.read_u32::<LittleEndian>()?;
-        let fcPlcflvcMixedXP = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcflvcMixedXP = reader.read_u32::<LittleEndian>()?;
-        let fcHplxsdr = reader.read_i32::<LittleEndian>()?;
-        let lcbHplxsdr = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfBkmkSdt = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfBkmkSdt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBkfSdt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBkfSdt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcBlkSdt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcBlkSdt = reader.read_u32::<LittleEndian>()?;
-        let fcCustomXForm = reader.read_i32::<LittleEndian>()?;
-        let lcbCustomXForm = reader.read_u32::<LittleEndian>()?;
-        let fcSttbfBkmkProt = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbfBkmkProt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBkfProt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBkfProt = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfBklProt = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfBklProt = reader.read_u32::<LittleEndian>()?;
-        let fcSttbProtUser = reader.read_i32::<LittleEndian>()?;
-        let lcbSttbProtUser = reader.read_u32::<LittleEndian>()?;
-        let fcPlcftpc = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcftpc = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpmiOld = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpmiOld = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpmiOldInline = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpmiOldInline = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpmiNew = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpmiNew = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfpmiNewInline = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfpmiNewInline = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfvcOld = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfvcOld = reader.read_u32::<LittleEndian>()?;
-        let fcPlcfvcOldInline = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcfvcOldInline = reader.read_u32::<LittleEndian>()?;
-        let fcPlcflvcNew = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcflvcNew = reader.read_u32::<LittleEndian>()?;
-        let fcPlcflvcNewInline = reader.read_i32::<LittleEndian>()?;
-        let lcbPlcflvcNewInline = reader.read_u32::<LittleEndian>()?;
+    let fcPlcffndRef = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffndRef = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffndRef,
+        lcbPlcffndRef,
+        "Footnote reference PLCF of FRD structures".into(),
+    ));
 
-        let mut fcpgdold_buff: [u8; 16] = [0; 16];
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcpgdMother = FCPGDOLD::from_bytes(&fcpgdold_buff);
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcpgdFtn = FCPGDOLD::from_bytes(&fcpgdold_buff);
-        reader.read_exact(&mut fcpgdold_buff)?;
-        let fcpgdEdn = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    let fcPlcffndTxt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffndTxt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcffndTxt, lcbPlcffndTxt, "Footnote text PLC".into()));
 
-        let fcAfd = reader.read_i32::<LittleEndian>()?;
-        let lcbAfd = reader.read_u32::<LittleEndian>()?;
-        // reader.seek(SeekFrom::Start(0x0102))?; // Skip to get to fcPlcfbtePapx
-        // let fcPlcfbtePapx = reader.read_i32::<LittleEndian>()?;
-        // let lcbPlcfbtePapx = reader.read_u32::<LittleEndian>()?;
+    let fcPlcfandRef = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfandRef = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfandRef,
+        lcbPlcfandRef,
+        "annotation reference ATRDPre10 PLC".into(),
+    ));
 
-        // reader.seek(SeekFrom::Start(0x00A2))?;
-        // let fcStshf = reader.read_i32::<LittleEndian>()?;
-        // let lcbStshf = reader.read_u32::<LittleEndian>()?;
+    let fcPlcfandTxt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfandTxt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfandTxt, lcbPlcfandTxt, "annotation text PLC".into()));
 
-        // reader.seek(SeekFrom::Start(0x01A2))?;
-        // let fcClx = reader.read_i32::<LittleEndian>()?;
-        // let lcbClx = reader.read_i32::<LittleEndian>()?;
+    let fcPlcfsed = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfsed = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfsed, lcbPlcfsed, "section descriptor SED PLC".into()));
 
-        // reader.seek(SeekFrom::Start(0x02E2))?;
-        // let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
-        // let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
-        // let fcPlfLfo = reader.read_i32::<LittleEndian>()?;
-        // let lcbPlfLfo = reader.read_u32::<LittleEndian>()?;
+    let fcPlcpad = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcpad = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcpad, lcbPlcpad, "No longer used".into()));
 
-        let cswNew = reader.read_u16::<LittleEndian>()?;
-        let actualNFib = reader.read_u16::<LittleEndian>()?;
-        let cQuickSavesNew = reader.read_u16::<LittleEndian>()?;
+    let fcPlcfphe = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfphe = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfphe, lcbPlcfphe, "paragraph height PHE PLC".into()));
 
-        Ok(Fib {
+    let fcSttbfglsy = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfglsy = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfglsy,
+        lcbSttbfglsy,
+        "glossary string table[arr of c-strings]".into(),
+    ));
+
+    let fcPlcfglsy = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfglsy = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfglsy, lcbPlcfglsy, "glossary PLC".into()));
+
+    let fcPlcfhdd = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfhdd = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfhdd, lcbPlcfhdd, "header HDD PLC".into()));
+
+    let fcPlcfbteChpx = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfbteChpx = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfbteChpx,
+        lcbPlcfbteChpx,
+        "character property bin table PLC".into(),
+    ));
+
+    assert_eq!(reader.seek(SeekFrom::Current(0))?, 0x0102);
+    let fcPlcfbtePapx = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfbtePapx = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfbtePapx,
+        lcbPlcfbtePapx,
+        "paragraph property bin table PLC".into(),
+    ));
+
+    let fcPlcfsea = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfsea = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfsea, lcbPlcfsea, "PLC reserved for private use".into()));
+
+    let fcsttbfffn = reader.read_i32::<LittleEndian>()?;
+    let lcbsttbfffn = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcsttbfffn,
+        lcbsttbfffn,
+        "Font information STTBF(FNN)".into(),
+    ));
+
+    let fcPlcffldMom = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldMom = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffldMom,
+        lcbPlcffldMom,
+        "FLD PLC of field positions".into(),
+    ));
+
+    let fcPlcffldHdr = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldHdr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffldHdr,
+        lcbPlcffldHdr,
+        "FLD PLC of field positions in header subdocument".into(),
+    ));
+
+    let fcPlcffldFtn = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldFtn = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffldFtn,
+        lcbPlcffldFtn,
+        "FLD PLC of field positions in the footnote subdocument".into(),
+    ));
+
+    let fcPlcffldAtn = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldAtn = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffldAtn,
+        lcbPlcffldAtn,
+        "FCD PLC of field positions in the annotation subdocument".into(),
+    ));
+
+    let fcPlcffldMcr = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldMcr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcffldMcr, lcbPlcffldMcr, "No longer used".into()));
+
+    let fcSttbfbkmk = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfbkmk = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcSttbfbkmk, lcbSttbfbkmk, "bookmark names STTBF".into()));
+
+    let fcPlcfbkf = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfbkf = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfbkf,
+        lcbPlcfbkf,
+        "PLCF for CP offsets of bookmarks".into(),
+    ));
+
+    let fcPlcfbkl = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfbkl = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfbkl,
+        lcbPlcfbkl,
+        "PLCF for ending CP offsets of bookmarks".into(),
+    ));
+
+    let fcCmds = reader.read_i32::<LittleEndian>()?;
+    let lcbCmds = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcCmds, lcbCmds, "command macros".into()));
+
+    let fcPlcmcr = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcmcr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcmcr, lcbPlcmcr, "No longer used".into()));
+
+    let fcSttbfmcr = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfmcr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcSttbfmcr, lcbSttbfmcr, "No longer used".into()));
+
+    let fcPrDrvr = reader.read_i32::<LittleEndian>()?;
+    let lcbPrDrvr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPrDrvr, lcbPrDrvr, "Printer driver information".into()));
+
+    let fcPrEnvPort = reader.read_i32::<LittleEndian>()?;
+    let lcbPrEnvPort = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPrEnvPort,
+        lcbPrEnvPort,
+        "Print environment information(landscape)".into(),
+    ));
+    let fcPrEnvLand = reader.read_i32::<LittleEndian>()?;
+    let lcbPrEnvLand = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPrEnvLand,
+        lcbPrEnvLand,
+        "Print environment information(portrait)".into(),
+    ));
+    let fcWss = reader.read_i32::<LittleEndian>()?;
+    let lcbWss = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcWss, lcbWss, "Window Save state data Structure".into()));
+    let fcDop = reader.read_i32::<LittleEndian>()?;
+    let lcbDop = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcDop, lcbDop, "Document property data".into()));
+    let fcSttbfAssoc = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfAssoc = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfAssoc,
+        lcbSttbfAssoc,
+        "associated strings STTBF".into(),
+    ));
+    let fcClx = reader.read_i32::<LittleEndian>()?;
+    let lcbClx = reader.read_i32::<LittleEndian>()?;
+    pairs.push((fcClx, lcbClx as u32, "Complex File Information".into()));
+    let fcPlcfpgdFtn = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpgdFtn = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfpgdFtn, lcbPlcfpgdFtn, "Not Used".into()));
+    let fcAutosaveSource = reader.read_i32::<LittleEndian>()?;
+    let lcbAutosaveSource = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcAutosaveSource,
+        lcbAutosaveSource,
+        "original file name(for autosave)".into(),
+    ));
+    let fcGrpXstAtnOwners = reader.read_i32::<LittleEndian>()?;
+    let lcbGrpXstAtnOwners = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcGrpXstAtnOwners,
+        lcbGrpXstAtnOwners,
+        "group of extended strings for annotation owners".into(),
+    ));
+    let fcSttbfAtnBkmk = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfAtnBkmk = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfAtnBkmk,
+        lcbSttbfAtnBkmk,
+        "STTBF for bookmark names for annotation subdocument".into(),
+    ));
+    let fcPlcdoaMom = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcdoaMom = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcdoaMom, lcbPlcdoaMom, "No longer used".into()));
+    let fcPlcdoaHdr = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcdoaHdr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcdoaHdr, lcbPlcdoaHdr, "No longer used".into()));
+    let fcPlcspaMom = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcspaMom = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcspaMom,
+        lcbPlcspaMom,
+        "FPSA PLC for main document (drawing objects)".into(),
+    ));
+    let fcPlcspaHdr = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcspaHdr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcspaHdr,
+        lcbPlcspaHdr,
+        "FPSA PLC for header subdocument (drawing objects)".into(),
+    ));
+    let fcPlcfAtnbkf = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfAtnbkf = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfAtnbkf,
+        lcbPlcfAtnbkf,
+        "BKF PLC for annotation subdocument".into(),
+    ));
+    let fcPlcfAtnbkl = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfAtnbkl = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfAtnbkl,
+        lcbPlcfAtnbkl,
+        "BKL PLC for annotation subdocument".into(),
+    ));
+    let fcPms = reader.read_i32::<LittleEndian>()?;
+    let lcbPms = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPms,
+        lcbPms,
+        "PMS(Print merge state) information block".into(),
+    ));
+    let fcFormFldSttbs = reader.read_i32::<LittleEndian>()?;
+    let lcbFormFldSttbs = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcFormFldSttbs, lcbFormFldSttbs, "Form Field STTBF".into()));
+    let fcPlcfendRef = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfendRef = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfendRef, lcbPlcfendRef, "PLCF FRD structures".into()));
+    let fcPlcfendTxt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfendTxt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfendTxt,
+        lcbPlcfendTxt,
+        "offset of endnote text of endnote subdocument".into(),
+    ));
+    let fcPlcffldEdn = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldEdn = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffldEdn,
+        lcbPlcffldEdn,
+        "FLD PLC of field positions in endnote subdocument".into(),
+    ));
+    let fcPlcfpgdEdn = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpgdEdn = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfpgdEdn, lcbPlcfpgdEdn, "Not Used".into()));
+    let fcDggInfo = reader.read_i32::<LittleEndian>()?;
+    let lcbDggInfo = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcDggInfo,
+        lcbDggInfo,
+        "Office Drawing object table data".into(),
+    ));
+    let fcSttbfRMark = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfRMark = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfRMark,
+        lcbSttbfRMark,
+        "STTBF for revision author abbreviations".into(),
+    ));
+    let fcSttbfCaption = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfCaption = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfCaption,
+        lcbSttbfCaption,
+        "STTBF for caption names".into(),
+    ));
+    let fcSttbfAutoCaption = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfAutoCaption = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfAutoCaption,
+        lcbSttbfAutoCaption,
+        "STTBF for auto caption names".into(),
+    ));
+    let fcPlcfWkb = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfWkb = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfWkb, lcbPlcfWkb, "PLCF WKP".into()));
+    let fcPlcfSpl = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfSpl = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfSpl,
+        lcbPlcfSpl,
+        "PLCF SLPS (spell check state sttructure)".into(),
+    ));
+    let fcPlcftxbxTxt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcftxbxTxt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcftxbxTxt,
+        lcbPlcftxbxTxt,
+        "PLCF for textbox text".into(),
+    ));
+    let fcPlcffldTxbx = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldTxbx = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffldTxbx,
+        lcbPlcffldTxbx,
+        "PLCF for textbox text for textbox subdocument".into(),
+    ));
+    let fcPlcfhdrtxbxTxt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfhdrtxbxTxt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfhdrtxbxTxt,
+        lcbPlcfhdrtxbxTxt,
+        "PLCF for textbox text for header textbox subdocument".into(),
+    ));
+    let fcPlcffldHdrTxbx = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffldHdrTxbx = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffldHdrTxbx,
+        lcbPlcffldHdrTxbx,
+        "FLD PLCF for textbox text for header textbox subdocument".into(),
+    ));
+    let fcStwUser = reader.read_i32::<LittleEndian>()?;
+    let lcbStwUser = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcStwUser, lcbStwUser, "Macro user storage".into()));
+    let fcSttbTtmbd = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbTtmbd = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbTtmbd,
+        lcbSttbTtmbd,
+        "emebedded true type font data".into(),
+    ));
+    let fcCookieData = reader.read_i32::<LittleEndian>()?;
+    let lcbCookieData = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcCookieData, lcbCookieData, "NLCheck error handle".into()));
+
+    let mut fcpgdold_buff: [u8; 16] = [0; 16];
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcPgdMotherOldOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcpgdFtnOldOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcpgdEdnOldOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+
+    pairs.push((
+        fcPgdMotherOldOld.fcPgd,
+        fcPgdMotherOldOld.lcbPgd,
+        "PLF of page descriptors for main document".into(),
+    ));
+    pairs.push((
+        fcPgdMotherOldOld.fcBkd,
+        fcPgdMotherOldOld.lcbBkd,
+        "PLF of break descriptors for main document".into(),
+    ));
+
+    pairs.push((
+        fcpgdFtnOldOld.fcPgd,
+        fcpgdFtnOldOld.lcbPgd,
+        "PLF of page descriptors for footnote text".into(),
+    ));
+    pairs.push((
+        fcpgdFtnOldOld.fcBkd,
+        fcpgdFtnOldOld.lcbBkd,
+        "PLF of break descriptors for footnote text".into(),
+    ));
+
+    pairs.push((
+        fcpgdEdnOldOld.fcPgd,
+        fcpgdEdnOldOld.lcbPgd,
+        "PLF of page descriptors for endnote text".into(),
+    ));
+    pairs.push((
+        fcpgdEdnOldOld.fcBkd,
+        fcpgdEdnOldOld.lcbBkd,
+        "PLF of break descriptors for endnote text".into(),
+    ));
+
+    let fcSttbfIntlFld = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfIntlFld = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfIntlFld,
+        lcbSttbfIntlFld,
+        "STTBF of field keywords".into(),
+    ));
+    let fcRouteSlip = reader.read_i32::<LittleEndian>()?;
+    let lcbRouteSlip = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcRouteSlip, lcbRouteSlip, "a mailer routing slip".into()));
+    let fcSttbSavedBy = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbSavedBy = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbSavedBy,
+        lcbSttbSavedBy,
+        "STTBF of document savers; (user, location) pairs".into(),
+    ));
+    let fcSttbFnm = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbFnm = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbFnm,
+        lcbSttbFnm,
+        "STTBF of file names refered to by doc".into(),
+    ));
+    let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfLst,
+        lcbPlcfLst,
+        "list format intformation table".into(),
+    ));
+    let fcPlfLfo = reader.read_i32::<LittleEndian>()?;
+    let lcbPlfLfo = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlfLfo, lcbPlfLfo, "list format override table".into()));
+    let fcPlcftxbxBkd = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcftxbxBkd = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcftxbxBkd,
+        lcbPlcftxbxBkd,
+        "PLCF BKD of text box descriptors".into(),
+    ));
+    let fcPlcftxbxHdrBkd = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcftxbxHdrBkd = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcftxbxHdrBkd,
+        lcbPlcftxbxHdrBkd,
+        "PLCF BKD of text box descriptors in header".into(),
+    ));
+    let fcDocUndoWord9 = reader.read_i32::<LittleEndian>()?;
+    let lcbDocUndoWord9 = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcDocUndoWord9,
+        lcbDocUndoWord9,
+        "undo / versioning data pre word10".into(),
+    ));
+    let fcRgbUse = reader.read_i32::<LittleEndian>()?;
+    let lcbRgbUse = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcRgbUse, lcbRgbUse, "undo / versioning data".into()));
+    let fcUsp = reader.read_i32::<LittleEndian>()?;
+    let lcbUsp = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcUsp, lcbUsp, "undo / versioning data".into()));
+    let fcUskf = reader.read_i32::<LittleEndian>()?;
+    let lcbUskf = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcUskf, lcbUskf, "undo / versioning data".into()));
+    let fcPlcupcRgbUse = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcupcRgbUse = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcupcRgbUse,
+        lcbPlcupcRgbUse,
+        "undo / versioning data".into(),
+    ));
+    let fcPlcupcUsp = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcupcUsp = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcupcUsp, lcbPlcupcUsp, "undo / versioning data".into()));
+    let fcSttbGlsyStyle = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbGlsyStyle = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbGlsyStyle,
+        lcbSttbGlsyStyle,
+        "STTBF of style names for glossary entries".into(),
+    ));
+    let fcPlgosl = reader.read_i32::<LittleEndian>()?;
+    let lcbPlgosl = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlgosl, lcbPlgosl, "grammar option PL".into()));
+    let fcPlcocx = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcocx = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcocx, lcbPlcocx, "ocx data".into()));
+    let fcPlcfBteLvc = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBteLvc = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBteLvc,
+        lcbPlcfBteLvc,
+        "character property bin table PLC".into(),
+    ));
+    let dwLowDateTime = reader.read_u32::<LittleEndian>()?;
+    let dwHighDateTime = reader.read_u32::<LittleEndian>()?;
+    let fcPlcfLvcPre10 = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfLvcPre10 = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfLvcPre10,
+        lcbPlcfLvcPre10,
+        "PLCF for LVC pre Word 10".into(),
+    ));
+    let fcPlcfAsumy = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfAsumy = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfAsumy, lcbPlcfAsumy, "autosummary ASUMY PLCF".into()));
+    let fcPlcfGram = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfGram = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfGram,
+        lcbPlcfGram,
+        "PLCF SPLS for grammar check state".into(),
+    ));
+    let fcSttbListNames = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbListNames = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbListNames,
+        lcbSttbListNames,
+        "list names string table".into(),
+    ));
+    let fcSttbfUssr = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfUssr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcSttbfUssr, lcbSttbfUssr, "undo / versioning data".into()));
+    let fcPlcfTch = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfTch = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfTch, lcbPlcfTch, "internal cache".into()));
+    let fcRmdfThreading = reader.read_i32::<LittleEndian>()?;
+    let lcbRmdfThreading = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcRmdfThreading,
+        lcbRmdfThreading,
+        "revision mark data(unused)".into(),
+    ));
+    let fcMid = reader.read_i32::<LittleEndian>()?;
+    let lcbMid = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcMid, lcbMid, "Message ID".into()));
+    let fcSttbRgtplc = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbRgtplc = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbRgtplc,
+        lcbSttbRgtplc,
+        "list gallery data (tplcs)".into(),
+    ));
+    let fcMsoEnvelope = reader.read_i32::<LittleEndian>()?;
+    let lcbMsoEnvelope = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcMsoEnvelope,
+        lcbMsoEnvelope,
+        "email header information".into(),
+    ));
+    let fcPlcfLad = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfLad = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfLad, lcbPlcfLad, "language autodetect results".into()));
+    let fcRgDofr = reader.read_i32::<LittleEndian>()?;
+    let lcbRgDofr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcRgDofr, lcbRgDofr, "miscellaneous document data".into()));
+    let fcPlcosl = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcosl = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcosl, lcbPlcosl, "NLCheck grammar option state".into()));
+    let fcPlcfCookieOld = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfCookieOld = reader.read_u32::<LittleEndian>()?;
+
+    let mut fcpgdold_buff: [u8; 16] = [0; 16];
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcPgdMotherOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcpgdFtnOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcpgdEdnOld = FCPGDOLD::from_bytes(&fcpgdold_buff);
+
+    let fcUnused1 = reader.read_i32::<LittleEndian>()?;
+    let lcbUnused1 = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcUnused1, lcbUnused1, "Unused".into()));
+    let fcPlcfPgp = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfPgp = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfPgp,
+        lcbPlcfPgp,
+        "paragraph group properties(HTML DIV)".into(),
+    ));
+    let fcPlcfuim = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfuim = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfuim, lcbPlcfuim, "UIM property data".into()));
+    let fcPlfguidUim = reader.read_i32::<LittleEndian>()?;
+    let lcbPlfguidUim = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlfguidUim, lcbPlfguidUim, "UIM table of GUIDs".into()));
+    let fcAtrdExtra = reader.read_i32::<LittleEndian>()?;
+    let lcbAtrdExtra = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcAtrdExtra,
+        lcbAtrdExtra,
+        "plex of ATRDPost10 structures".into(),
+    ));
+    let fcPlrsid = reader.read_i32::<LittleEndian>()?;
+    let lcbPlrsid = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlrsid, lcbPlrsid, "PLCF of RSID structures".into()));
+    let fcSttbfBkmkFactoid = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfBkmkFactoid = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfBkmkFactoid,
+        lcbSttbfBkmkFactoid,
+        "Smart tag bookmark STTB".into(),
+    ));
+    let fcPlcfBkfFactoid = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBkfFactoid = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBkfFactoid,
+        lcbPlcfBkfFactoid,
+        "smart tak bookmark plc of cpFirsts".into(),
+    ));
+    let fcPlcfcookie = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfcookie = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfcookie,
+        lcbPlcfcookie,
+        "internal data for grammar features".into(),
+    ));
+    let fcPlcfBklFactoid = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBklFactoid = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBklFactoid,
+        lcbPlcfBklFactoid,
+        "smart tag bookmark plc of cpLims".into(),
+    ));
+    let fcFactoidData = reader.read_i32::<LittleEndian>()?;
+    let lcbFactoidData = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcFactoidData, lcbFactoidData, "smart tag data".into()));
+    let fcDocUndo = reader.read_i32::<LittleEndian>()?;
+    let lcbDocUndo = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcDocUndo, lcbDocUndo, "undo / versioning data".into()));
+    let fcSttbfBkmkFcc = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfBkmkFcc = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcSttbfBkmkFcc, lcbSttbfBkmkFcc, "FCC bookmark STTB".into()));
+    let fcPlcfBkfFcc = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBkfFcc = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBkfFcc,
+        lcbPlcfBkfFcc,
+        "fcc bookmark plc of cpLims".into(),
+    ));
+    let fcPlcfBklFcc = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBklFcc = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBklFcc,
+        lcbPlcfBklFcc,
+        "fcc bookmark plc of cpLims".into(),
+    ));
+    let fcSttbfbkmkBPRepairs = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfbkmkBPRepairs = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfbkmkBPRepairs,
+        lcbSttbfbkmkBPRepairs,
+        "plc of cpFirsts for file repair feature".into(),
+    ));
+    let fcPlcfbkfBPRepairs = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfbkfBPRepairs = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfbkfBPRepairs,
+        lcbPlcfbkfBPRepairs,
+        "plc of cpLims for file repair feature".into(),
+    ));
+    let fcPmsNew = reader.read_i32::<LittleEndian>()?;
+    let lcbPmsNew = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPmsNew,
+        lcbPmsNew,
+        "PMS satate for new merge state information".into(),
+    ));
+    let fcODSO = reader.read_i32::<LittleEndian>()?;
+    let lcbODSO = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcODSO,
+        lcbODSO,
+        "IMsoODSO / IMsoMailmerge Information".into(),
+    ));
+    let fcPlcfpmiOldXP = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpmiOldXP = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfpmiOldXP,
+        lcbPlcfpmiOldXP,
+        "Paragraph Mark Information(Old View)".into(),
+    ));
+    let fcPlcfpmiNewXP = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpmiNewXP = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfpmiNewXP,
+        lcbPlcfpmiNewXP,
+        "Paragraph Mark Information(New View)".into(),
+    ));
+    let fcPlcfpmiMixedXP = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpmiMixedXP = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfpmiMixedXP,
+        lcbPlcfpmiMixedXP,
+        "Paragraph Mark Information(Mixed View)".into(),
+    ));
+    let fcEncryptedProps = reader.read_i32::<LittleEndian>()?;
+    let lcbEncryptedProps = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcEncryptedProps,
+        lcbEncryptedProps,
+        "Internal Encrypted Document Properties".into(),
+    ));
+    let fcPlcffactoid = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcffactoid = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcffactoid,
+        lcbPlcffactoid,
+        "background factoid checking state".into(),
+    ));
+    let fcPlcflvcOldXP = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcflvcOldXP = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcflvcOldXP, lcbPlcflvcOldXP, "LVS PLC(Old View)".into()));
+    let fcPlcflvcNewXP = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcflvcNewXP = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcflvcNewXP, lcbPlcflvcNewXP, "LVS PLC(New View)".into()));
+    let fcPlcflvcMixedXP = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcflvcMixedXP = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcflvcMixedXP,
+        lcbPlcflvcMixedXP,
+        "LVS PLC(Mixed View)".into(),
+    ));
+    let fcHplxsdr = reader.read_i32::<LittleEndian>()?;
+    let lcbHplxsdr = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcHplxsdr,
+        lcbHplxsdr,
+        "XML Schema definition References".into(),
+    ));
+    let fcSttbfBkmkSdt = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfBkmkSdt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfBkmkSdt,
+        lcbSttbfBkmkSdt,
+        "XML bookmark information".into(),
+    ));
+    let fcPlcfBkfSdt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBkfSdt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBkfSdt,
+        lcbPlcfBkfSdt,
+        "SDT bookmark plc of cpFirsts".into(),
+    ));
+    let fcPlcBlkSdt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcBlkSdt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcBlkSdt,
+        lcbPlcBlkSdt,
+        "SDT bookmark plc of cpLims".into(),
+    ));
+    let fcCustomXForm = reader.read_i32::<LittleEndian>()?;
+    let lcbCustomXForm = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcCustomXForm, lcbCustomXForm, "Custom XML Transform".into()));
+    let fcSttbfBkmkProt = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbfBkmkProt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbfBkmkProt,
+        lcbSttbfBkmkProt,
+        "Range Protection Bookmark STTB".into(),
+    ));
+    let fcPlcfBkfProt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBkfProt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBkfProt,
+        lcbPlcfBkfProt,
+        "Range Protection bookmark plc of cpFirsts".into(),
+    ));
+    let fcPlcfBklProt = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfBklProt = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfBklProt,
+        lcbPlcfBklProt,
+        "Range Protection bookmark plc of cpLims".into(),
+    ));
+    let fcSttbProtUser = reader.read_i32::<LittleEndian>()?;
+    let lcbSttbProtUser = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcSttbProtUser,
+        lcbSttbProtUser,
+        "Range Protection User List STTB".into(),
+    ));
+    let fcPlcftpc = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcftpc = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcftpc, lcbPlcftpc, "current text paragraph cache".into()));
+    let fcPlcfpmiOld = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpmiOld = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfpmiOld,
+        lcbPlcfpmiOld,
+        "Paragraph Mark Information(Old View)".into(),
+    ));
+    let fcPlcfpmiOldInline = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpmiOldInline = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfpmiOldInline,
+        lcbPlcfpmiOldInline,
+        "Paragraph Mark Information(Old Inline View)".into(),
+    ));
+    let fcPlcfpmiNew = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpmiNew = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfpmiNew,
+        lcbPlcfpmiNew,
+        "Paragraph Mark Information(New View)".into(),
+    ));
+    let fcPlcfpmiNewInline = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfpmiNewInline = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfpmiNewInline,
+        lcbPlcfpmiNewInline,
+        "Paragraph Mark Information(New Inline View)".into(),
+    ));
+    let fcPlcfvcOld = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfvcOld = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcfvcOld, lcbPlcfvcOld, "LVC PLC(Old View)".into()));
+    let fcPlcfvcOldInline = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcfvcOldInline = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcfvcOldInline,
+        lcbPlcfvcOldInline,
+        "LVC PLC(Old Inline View)".into(),
+    ));
+    let fcPlcflvcNew = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcflvcNew = reader.read_u32::<LittleEndian>()?;
+    pairs.push((fcPlcflvcNew, lcbPlcflvcNew, "LVC PLC(New View)".into()));
+    let fcPlcflvcNewInline = reader.read_i32::<LittleEndian>()?;
+    let lcbPlcflvcNewInline = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcPlcflvcNewInline,
+        lcbPlcflvcNewInline,
+        "LVC PLC(New Inline View)".into(),
+    ));
+
+    let mut fcpgdold_buff: [u8; 16] = [0; 16];
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcpgdMother = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcpgdFtn = FCPGDOLD::from_bytes(&fcpgdold_buff);
+    reader.read_exact(&mut fcpgdold_buff)?;
+    let fcpgdEdn = FCPGDOLD::from_bytes(&fcpgdold_buff);
+
+    let fcAfd = reader.read_i32::<LittleEndian>()?;
+    let lcbAfd = reader.read_u32::<LittleEndian>()?;
+    pairs.push((
+        fcAfd,
+        lcbAfd,
+        "Internal revision mark view information".into(),
+    ));
+
+    // reader.seek(SeekFrom::Start(0x0102))?; // Skip to get to fcPlcfbtePapx
+    // let fcPlcfbtePapx = reader.read_i32::<LittleEndian>()?;
+    // let lcbPlcfbtePapx = reader.read_u32::<LittleEndian>()?;
+
+    // reader.seek(SeekFrom::Start(0x00A2))?;
+    // let fcStshf = reader.read_i32::<LittleEndian>()?;
+    // let lcbStshf = reader.read_u32::<LittleEndian>()?;
+
+    // reader.seek(SeekFrom::Start(0x01A2))?;
+    // let fcClx = reader.read_i32::<LittleEndian>()?;
+    // let lcbClx = reader.read_i32::<LittleEndian>()?;
+
+    // reader.seek(SeekFrom::Start(0x02E2))?;
+    // let fcPlcfLst = reader.read_i32::<LittleEndian>()?;
+    // let lcbPlcfLst = reader.read_u32::<LittleEndian>()?;
+    // let fcPlfLfo = reader.read_i32::<LittleEndian>()?;
+    // let lcbPlfLfo = reader.read_u32::<LittleEndian>()?;
+
+    let cswNew = reader.read_u16::<LittleEndian>()?;
+    let actualNFib = reader.read_u16::<LittleEndian>()?;
+    let cQuickSavesNew = reader.read_u16::<LittleEndian>()?;
+
+    Ok((
+        Fib {
             wIdent,
             nFib,
             nProduct,
@@ -814,8 +1359,9 @@ impl FromReader for Fib {
             cswNew,
             actualNFib,
             cQuickSavesNew,
-        })
-    }
+        },
+        pairs,
+    ))
 }
 
 impl FromReader for SHSHI {
@@ -1872,7 +2418,6 @@ impl FromReader for LSTs {
                 // read cbGrpprlChpx bytes
                 let mut grpprl_chpx_buffer = vec![0; LVLF.cbGrpprlChpx as usize];
                 reader.read_exact(&mut grpprl_chpx_buffer).unwrap();
-
 
                 let number_text = {
                     let length_byte = reader.read_u16::<LittleEndian>().unwrap();

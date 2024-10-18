@@ -1,5 +1,5 @@
 use cfb::CompoundFile;
-use from_reader::FromReader;
+use from_reader::{fib_from_read_impl, FromReader};
 use json::JsonValue;
 pub use model::*;
 use std::{
@@ -25,6 +25,7 @@ pub struct WordDocument {
     pub table_stream_name: String,
     pub document_summary_information_stream: DocumentSummaryInfoStream,
     pub summary_information: SummaryInformation,
+    fc_lb_pairs: Vec<(i32, u32, String)>,
 }
 
 // endregion: Structs
@@ -84,7 +85,7 @@ impl WordDocument {
             summary_info
         };
 
-        let fib = Fib::from_reader(&mut word_doc_stream)?;
+        let (fib, fc_lb_pairs) = fib_from_read_impl(&mut word_doc_stream)?;
 
         // Determine which table stream to use
         let table_stream_name = if !fib.fWhichTblStm {
@@ -226,6 +227,7 @@ impl WordDocument {
             list_tables,
             document_summary_information_stream,
             summary_information,
+            fc_lb_pairs,
         })
     }
 
@@ -261,9 +263,7 @@ impl WordDocument {
 
         let fib_header_bytes =
             PhysicalStructure::from_reader_range(&mut word_doc_stream, 0, 72, "WordDocument")
-                .description(
-                    "Fib Header bytes; conttains varaibles like product versionand word version",
-                )
+                .description("Fib 1997 bytes")
                 .structure_name("Fib 1997 Header");
         let next_fib_section =
             PhysicalStructure::from_reader_range(&mut word_doc_stream, 72, 402, "WordDocument")
@@ -307,7 +307,7 @@ impl WordDocument {
             fib.fcMin as u64 * fib.ccpText as u64,
             "Table Stream",
         )
-        .description("first character to alst character of the regular text section");
+        .description("first character to last character of the regular text section");
         output.push(main_text_section);
 
         let stylesheet = PhysicalStructure::from_reader_range(
@@ -319,16 +319,27 @@ impl WordDocument {
         .description("STSHI(Stylesheet) structure");
         output.push(stylesheet);
 
-        let footnote_run = Self::get_offset_and_count(&mut word_doc_stream, 0x00AA);
-        output.push(
-            PhysicalStructure::from_reader_range(
-                &mut table_stream,
-                footnote_run.0,
-                footnote_run.0 + footnote_run.1,
-                "WordDocument",
-            )
-            .description("Footnote Reference Structure"),
-        );
+        let fc_lb_pairs = self.fc_lb_pairs.iter().map(|(fc, lb, desc)| {
+            if *fc == -1 {
+                PhysicalStructure {
+                    stream_name: "Table Stream".to_string(),
+                    structure_name: None,
+                    bytes: vec![],
+                    start_index: *fc as i64,
+                    end_index: *lb as i64,
+                    description: Some(desc.to_string()),
+                }
+            } else {
+                PhysicalStructure::from_reader_range(
+                    &mut table_stream,
+                    *fc as u64,
+                    (*fc as u32 + *lb) as u64,
+                    "Table Stream",
+                )
+                .description(desc)
+            }
+        }).collect::<Vec<_>>();
+        output.extend(fc_lb_pairs);
 
         output
     }

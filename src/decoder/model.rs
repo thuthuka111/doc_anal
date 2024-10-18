@@ -82,8 +82,8 @@ pub struct PhysicalStructure {
     pub structure_name: Option<String>,
     // the below will be made into a string for TS
     pub bytes: Vec<u8>,
-    pub start_index: u64,
-    pub end_index: u64,
+    pub start_index: i64,
+    pub end_index: i64,
     pub description: Option<String>,
 }
 
@@ -101,8 +101,8 @@ impl PhysicalStructure {
         PhysicalStructure {
             stream_name: stream_name.to_string(),
             bytes,
-            start_index: start,
-            end_index: end,
+            start_index: start as i64,
+            end_index: end as i64,
             description: None,
             structure_name: None,
         }
@@ -318,8 +318,8 @@ pub struct Fib {
     pub Clw: u16,
     /* Beginning of array of longs */
     pub cbMac: i32,
-    pub lProductCreated: Bytes,
-    pub lProductRevised: Bytes,
+    pub lProductCreated: i32,
+    pub lProductRevised: i32,
     /* Lengths for the approprate Text Sections */
     pub ccpText: i32,
     pub ccpFtn: i32,

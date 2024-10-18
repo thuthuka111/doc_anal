@@ -17,6 +17,8 @@ fn main() -> io::Result<()> {
 
     let file = File::open(file_path)?;
     let word_doc = WordDocument::read_file(file)?;
+    let _ = word_doc.get_logical_structures();
+    let _ = word_doc.get_physical_sructures();
 
     // let something = word_doc.to_json();
     // println!("{}", something.pretty(2));
