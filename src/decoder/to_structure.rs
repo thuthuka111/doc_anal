@@ -445,12 +445,16 @@ impl ToStructure for Fib {
 impl ToStructure for SHSHI {
     fn descriptions() -> JsonValue {
         object! {
+            cbStshi: "Count of bytes of this SHSHI allocation",
             cstd: "The Number of styles in the stylesheet",
             cbSTDBaseInFile: "The length of STD Base as stored in file",
             fStdStylenamesWritten: "Flag indicating whether built-in styles are stored",
             stiMaxWhenSaved: "Max sti known when this file was written",
             istdMaxFixedWhenSaved: "The number of fixed-index issd's there are",
-            nVerBuiltInNamesWhenSaved: "Current version of build-in stylenames"
+            nVerBuiltInNamesWhenSaved: "Current version of build-in stylenames",
+            rgftcStandardChpStsh: "rgftc used by StandardChpStsh for this document",
+            cbLSD: "count of bytes of each LSD in mpstilsd",
+            mpstilsd: "latent style data(array of LSDs)",
         }
     }
 

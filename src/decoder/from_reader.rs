@@ -1382,11 +1382,25 @@ impl FromReader for SHSHI {
         let istdMaxFixedWhenSaved = stshi_buffer.read_u16::<LittleEndian>()?;
         let nVerBuiltInNamesWhenSaved = stshi_buffer.read_u16::<LittleEndian>()?;
 
+        let rgftcStandardChpStsh: [u16; 4] = [
+            stshi_buffer.read_u16::<LittleEndian>()?,
+            stshi_buffer.read_u16::<LittleEndian>()?,
+            stshi_buffer.read_u16::<LittleEndian>()?,
+            stshi_buffer.read_u16::<LittleEndian>()?
+        ];
+
+        let cbLSD = stshi_buffer.read_u16::<LittleEndian>()?;
+
+        // reading latent style data
+        let mut mpstilsd: Vec<Bytes> = Vec::with_capacity(stiMaxWhenSaved as usize);
+        for _ in 0..stiMaxWhenSaved {
+            let mut lsd_buffer = vec![0; cbLSD as usize];
+            stshi_buffer.read_exact(&mut lsd_buffer)?;
+            mpstilsd.push(Bytes::new(lsd_buffer));
+        }
+
         // Reading in the styles
         let mut styles = Vec::with_capacity(cstd as usize);
-
-        // println!("Number of styles: {}", cstd);
-
         for _ in 0..cstd {
             // size of following STD structure
             let cbStd = stsh_buffer.read_u16::<LittleEndian>()?;
@@ -1408,12 +1422,16 @@ impl FromReader for SHSHI {
         }
 
         Ok(SHSHI {
+            cbStshi,
             cstd,
             cbSTDBaseInFile,
             fStdStylenamesWritten,
             stiMaxWhenSaved,
             istdMaxFixedWhenSaved,
             nVerBuiltInNamesWhenSaved,
+            rgftcStandardChpStsh,
+            cbLSD,
+            mpstilsd,
             styles,
         })
     }

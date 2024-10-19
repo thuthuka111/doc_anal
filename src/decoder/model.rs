@@ -791,6 +791,8 @@ pub struct PCD {
 #[allow(non_snake_case, unused)]
 #[derive(Debug, Iterable, Serialize)]
 pub struct SHSHI {
+    // real count of bytes of the STSH
+    pub cbStshi: u16,
     pub cstd: u16,
     pub cbSTDBaseInFile: u16,
     /// Are build-in stylenames stored
@@ -802,7 +804,12 @@ pub struct SHSHI {
     pub istdMaxFixedWhenSaved: u16,
     /// Current version of build-in stylenames
     pub nVerBuiltInNamesWhenSaved: u16,
-    /* 3 more fields to do */
+    /// rgfts used by StandardChpStsh
+    pub rgftcStandardChpStsh: [u16; 4],
+    /// size of each lsd in mpstilsd
+    pub cbLSD: u16,
+    /// latent style data
+    pub mpstilsd: Vec<Bytes>,
     pub styles: Vec<STD>,
 }
 
