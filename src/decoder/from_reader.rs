@@ -1734,6 +1734,7 @@ impl FromReader for SummaryInformation {
         for (prop_ident_and_offset, property_type) in property_set_stream.propertySets[0]
             .rgProperties
             .iter()
+            .skip(1)
             .zip(property_set_stream.propertySets[0].properties.iter())
         {
             let property_type = match property_type {
@@ -1774,6 +1775,7 @@ impl FromReader for SummaryInformation {
         }
 
         Ok(SummaryInformation {
+            propertysetStreamHeader: property_set_stream.propertySetStreamVals,
             title: title,
             subject: subject,
             author: author,
@@ -1809,7 +1811,6 @@ impl FromReader for PropertySetStreamStart {
         let mut applicationClsid = [0 as u8; 16];
         reader.read_exact(&mut applicationClsid)?;
         let cSections = reader.read_u32::<LittleEndian>()?; // should be 0s only
-
         let mut rg_offsets = Vec::with_capacity(cSections as usize);
 
         // Reading the types and the offsets for the PropertySets

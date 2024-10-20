@@ -264,7 +264,6 @@ impl serde::Serialize for Bytes {
     }
 }
 
-
 #[allow(non_snake_case, unused)]
 #[derive(Debug, Iterable, Serialize)]
 pub struct Fib {
@@ -546,7 +545,7 @@ pub struct Fib {
     pub lcbPlcosl: u32,
     pub fcPlcfCookieOld: i32,
     pub lcbPlcfCookieOld: u32,
-    pub fcPgdMotherOld: FCPGDOLD,    
+    pub fcPgdMotherOld: FCPGDOLD,
     pub fcpgdFtnOld: FCPGDOLD,
     pub fcpgdEdnOld: FCPGDOLD,
     pub fcUnused1: i32,
@@ -823,7 +822,7 @@ pub struct PLCF<T: FromCStruct> {
 
 // The first few bytes of the PropertySetStream
 #[allow(non_snake_case, unused)]
-#[derive(Debug)]
+#[derive(Debug, Iterable, Serialize)]
 pub struct PropertySetStreamStart {
     pub byteOrder: u16,
     pub version: u16,
@@ -950,6 +949,8 @@ pub struct DocumentSummaryInfoStream {
 #[allow(non_snake_case, unused)]
 #[derive(Debug, Iterable, Serialize)]
 pub struct SummaryInformation {
+    #[serde(flatten)]
+    pub propertysetStreamHeader: PropertySetStreamStart,
     pub title: Option<NormalPropertyType>,
     pub subject: Option<NormalPropertyType>,
     pub author: Option<NormalPropertyType>,
@@ -975,6 +976,23 @@ pub struct RgIdOffset {
     pub formatID: [u8; 16],
     pub sectionOffset: u32,
 }
+
+impl serde::Serialize for RgIdOffset {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(2))?;
+        serde::ser::SerializeMap::serialize_entry(
+            &mut map,
+            "formatID",
+            &format!("0x{:?}", hex::encode_upper(&self.formatID)),
+        )?;
+        serde::ser::SerializeMap::serialize_entry(&mut map, "sectionOffset", &self.sectionOffset)?;
+        serde::ser::SerializeMap::end(map)
+    }
+}
+
 #[allow(non_snake_case, unused)]
 #[derive(Debug)]
 pub enum PropertyIdentifier {

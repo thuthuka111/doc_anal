@@ -510,7 +510,7 @@ impl ToStructure for STD {
             istdBase: "Base Style identifier",
             cupx: "Number of UPSx (and UPEs)",
             istdNext: "Next Style identifier",
-            bchUpe: "Offset ot end of upx's, start of upe's"
+            bchUpe: "Offset to end of upx's, start of upe's"
         }
     }
 
@@ -583,7 +583,11 @@ impl ToStructure for SummaryInformation {
         let self_json = json::parse(&serde_json::to_string(&self).unwrap()).unwrap();
         let mut structure_items = vec![];
 
-        for (field_name, _) in self.iter() {
+        for (field_name, _) in self.propertysetStreamHeader.iter().chain(self.iter()) {
+            if field_name == "propertysetStreamHeader" {
+                continue;
+            }
+
             let field_val = self_json[field_name].to_string();
             let description = if descriptions.has_key(&field_name) {
                 Some(descriptions[field_name].clone().to_string())
