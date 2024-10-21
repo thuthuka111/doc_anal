@@ -824,13 +824,59 @@ pub struct PLCF<T: FromCStruct> {
 #[allow(unused)]
 #[derive(Debug, Iterable, Serialize)]
 pub struct Text {
-    pub main_text: Vec<String>,
-    pub footnote_text: Vec<String>,
-    pub header_text: Vec<String>,
-    pub annotation_text: Vec<String>,
-    pub endnote_text: Vec<String>,
-    pub textbox_text: Vec<String>,
-    pub header_textbox_text: Vec<String>,
+    pub main_text: TextDoc,
+    pub footnote_text: TextDoc,
+    pub header_text: TextDoc,
+    pub annotation_text: TextDoc,
+    pub endnote_text: TextDoc,
+    pub textbox_text: TextDoc,
+    pub header_textbox_text: TextDoc,
+}
+
+#[derive(Debug)]
+pub struct TextDoc {
+    bytes: Vec<u8>,
+    _text: Vec<String>,
+}
+
+impl TextDoc {
+    pub fn from(bytes: &[u8]) -> Self {
+        let text = byte_to_string_arr(bytes);
+        TextDoc {
+            bytes: bytes.to_vec(),
+            _text: text,
+        }
+    }
+
+    fn to_fmt_string(&self) -> String {
+        let mut text = String::new();
+
+        for byte in &self.bytes {
+            let c: char = char::from(*byte);
+            if c.is_ascii_alphanumeric() || c.is_ascii_punctuation() {
+                if c == '{' {
+                    text.push_str("\\{");
+                } else if c == '}' {
+                    text.push_str("\\}");
+                } else {
+                    text.push(c);
+                }
+            } else {
+                text.push_str(&format!("{{0x{:02X}}}", byte));
+            }
+        }
+
+        text
+    }
+}
+
+impl serde::Serialize for TextDoc {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_fmt_string().serialize(serializer)
+    }
 }
 
 // The first few bytes of the PropertySetStream
@@ -1085,4 +1131,19 @@ impl LSTF {
     pub fn fHybridList(&self) -> bool {
         self.flagfield & 0x10 == 0x10
     }
+}
+
+fn byte_to_string_arr(butes: &[u8]) -> Vec<String> {
+    let mut strings = Vec::new();
+
+    for byte in butes {
+        let c: char = char::from(*byte);
+        if c.is_ascii_alphanumeric() || c.is_ascii_punctuation() {
+            strings.push(c.to_string());
+        } else {
+            strings.push(format!("0x{:02X}", byte));
+        }
+    }
+
+    strings
 }

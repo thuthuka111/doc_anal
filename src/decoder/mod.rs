@@ -93,52 +93,52 @@ impl WordDocument {
             let mut start = fib.fcMin as usize;
             let mut end = fib.fcMin as usize + fib.ccpText as usize;
 
-            let mut buffer = vec![0u8; (end - start)];
+            let mut buffer = vec![0u8; end - start];
             word_doc_stream.seek(SeekFrom::Start(start as u64))?;
             word_doc_stream.read_exact(&mut buffer)?;
-            let main_text = byte_to_string_arr(&buffer);
+            let main_text = TextDoc::from(&buffer);
 
             start = end;
             end += fib.ccpFtn as usize;
             buffer = vec![0u8; end - start];
             word_doc_stream.seek(SeekFrom::Start(start as u64))?;
             word_doc_stream.read_exact(&mut buffer)?;
-            let footnote_text = byte_to_string_arr(&buffer);
+            let footnote_text = TextDoc::from(&buffer);
 
             start = end;
             end += fib.ccpHdr as usize;
             buffer = vec![0u8; end - start];
             word_doc_stream.seek(SeekFrom::Start(start as u64))?;
             word_doc_stream.read_exact(&mut buffer)?;
-            let header_text = byte_to_string_arr(&buffer);
+            let header_text = TextDoc::from(&buffer);
 
             start = end;
             end += fib.ccpAtn as usize;
             buffer = vec![0u8; end - start];
             word_doc_stream.seek(SeekFrom::Start(start as u64))?;
             word_doc_stream.read_exact(&mut buffer)?;
-            let annotation_text = byte_to_string_arr(&buffer);
+            let annotation_text = TextDoc::from(&buffer);
 
             start = end;
             end += fib.ccpEdn as usize;
             buffer = vec![0u8; end - start];
             word_doc_stream.seek(SeekFrom::Start(start as u64))?;
             word_doc_stream.read_exact(&mut buffer)?;
-            let endnote_text = byte_to_string_arr(&buffer);
+            let endnote_text = TextDoc::from(&buffer);
 
             start = end;
             end += fib.ccpTxbx as usize;
             buffer = vec![0u8; end - start];
             word_doc_stream.seek(SeekFrom::Start(start as u64))?;
             word_doc_stream.read_exact(&mut buffer)?;
-            let textbox_text = byte_to_string_arr(&buffer);
+            let textbox_text = TextDoc::from(&buffer);
 
             start = end;
             end += fib.ccpTxbx as usize;
             buffer = vec![0u8; end - start];
             word_doc_stream.seek(SeekFrom::Start(start as u64))?;
             word_doc_stream.read_exact(&mut buffer)?;
-            let header_textbox_text = byte_to_string_arr(&buffer);
+            let header_textbox_text = TextDoc::from(&buffer);
 
             Text {
                 main_text,
@@ -654,21 +654,6 @@ fn compute_subsctructure_differences<'a, 'b>(
     }
 
     differences
-}
-
-fn byte_to_string_arr(butes: &[u8]) -> Vec<String> {
-    let mut strings = Vec::new();
-
-    for byte in butes {
-        let c: char = char::from(*byte);
-        if c.is_ascii_alphanumeric() || c.is_ascii_punctuation() {
-            strings.push(c.to_string());
-        } else {
-            strings.push(format!("0x{:02X}", byte));
-        }
-    }
-
-    strings
 }
 
 // tests
