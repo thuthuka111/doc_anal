@@ -25,6 +25,8 @@ fn main() -> io::Result<()> {
 
     // let fib = &word_doc.fib;
     // println!("{:?}", fib);
+    // let stylesheet = &word_doc.stylesheet;
+    // println!("{:#?}", stylesheet);
 
     word_doc.print_cfb_structure();
     Ok(())

@@ -19,6 +19,7 @@ mod to_structure;
 pub struct WordDocument {
     pub cfb: RefCell<CompoundFile<File>>,
     pub fib: Fib,
+    pub text: Text,
     pub stylesheet: SHSHI,
     pub piece_table: PLCF<PCD>,
     pub list_tables: LSTs,
@@ -87,6 +88,69 @@ impl WordDocument {
 
         let (fib, fc_lb_pairs) = fib_from_read_impl(&mut word_doc_stream)?;
 
+        let text = {
+            // does not account for fib.fComplex (complex / fast-saved) file
+            let mut start = fib.fcMin as usize;
+            let mut end = fib.fcMin as usize + fib.ccpText as usize;
+
+            let mut buffer = vec![0u8; (end - start)];
+            word_doc_stream.seek(SeekFrom::Start(start as u64))?;
+            word_doc_stream.read_exact(&mut buffer)?;
+            let main_text = byte_to_string_arr(&buffer);
+
+            start = end;
+            end += fib.ccpFtn as usize;
+            buffer = vec![0u8; end - start];
+            word_doc_stream.seek(SeekFrom::Start(start as u64))?;
+            word_doc_stream.read_exact(&mut buffer)?;
+            let footnote_text = byte_to_string_arr(&buffer);
+
+            start = end;
+            end += fib.ccpHdr as usize;
+            buffer = vec![0u8; end - start];
+            word_doc_stream.seek(SeekFrom::Start(start as u64))?;
+            word_doc_stream.read_exact(&mut buffer)?;
+            let header_text = byte_to_string_arr(&buffer);
+
+            start = end;
+            end += fib.ccpAtn as usize;
+            buffer = vec![0u8; end - start];
+            word_doc_stream.seek(SeekFrom::Start(start as u64))?;
+            word_doc_stream.read_exact(&mut buffer)?;
+            let annotation_text = byte_to_string_arr(&buffer);
+
+            start = end;
+            end += fib.ccpEdn as usize;
+            buffer = vec![0u8; end - start];
+            word_doc_stream.seek(SeekFrom::Start(start as u64))?;
+            word_doc_stream.read_exact(&mut buffer)?;
+            let endnote_text = byte_to_string_arr(&buffer);
+
+            start = end;
+            end += fib.ccpTxbx as usize;
+            buffer = vec![0u8; end - start];
+            word_doc_stream.seek(SeekFrom::Start(start as u64))?;
+            word_doc_stream.read_exact(&mut buffer)?;
+            let textbox_text = byte_to_string_arr(&buffer);
+
+            start = end;
+            end += fib.ccpTxbx as usize;
+            buffer = vec![0u8; end - start];
+            word_doc_stream.seek(SeekFrom::Start(start as u64))?;
+            word_doc_stream.read_exact(&mut buffer)?;
+            let header_textbox_text = byte_to_string_arr(&buffer);
+
+            Text {
+                main_text,
+                footnote_text,
+                header_text,
+                annotation_text,
+                endnote_text,
+                textbox_text,
+                header_textbox_text,
+            }
+        };
+
         // Determine which table stream to use
         let table_stream_name = if !fib.fWhichTblStm {
             "0Table"
@@ -115,7 +179,6 @@ impl WordDocument {
             let mut stsh_buffer = vec![0; fib.lcbStshf as usize];
             table_stream.seek(SeekFrom::Start(fib.fcStshf as u64))?;
             table_stream.read_exact(&mut stsh_buffer)?;
-            println!("Lenght of STSH: {}", stsh_buffer.len());
 
             let mut stsh_buffer = BufReader::new(Cursor::new(stsh_buffer));
             let stylesheet = SHSHI::from_reader(&mut stsh_buffer)?;
@@ -221,6 +284,7 @@ impl WordDocument {
         Ok(WordDocument {
             cfb: RefCell::new(cfb),
             fib,
+            text,
             stylesheet,
             piece_table,
             table_stream_name: table_stream_name.to_string(),
@@ -233,6 +297,7 @@ impl WordDocument {
 
     pub fn get_logical_structures(&self) -> Vec<Structure> {
         let fib = Structure::from("Fib", &self.fib);
+        let text = Structure::from("Text", &self.text);
         let stylesheet = Structure::from("StyleSheet", &self.stylesheet);
         let peice_tables = Structure::from("Piece Tables", &self.piece_table);
         let document_summary_information_stream = Structure::from(
@@ -244,6 +309,7 @@ impl WordDocument {
 
         vec![
             fib,
+            text,
             stylesheet,
             peice_tables,
             document_summary_information_stream,
@@ -319,26 +385,30 @@ impl WordDocument {
         .description("STSHI(Stylesheet) structure");
         output.push(stylesheet);
 
-        let fc_lb_pairs = self.fc_lb_pairs.iter().map(|(fc, lb, desc)| {
-            if *fc == -1 {
-                PhysicalStructure {
-                    stream_name: "Table Stream".to_string(),
-                    structure_name: None,
-                    bytes: vec![],
-                    start_index: *fc as i64,
-                    end_index: *lb as i64,
-                    description: Some(desc.to_string()),
+        let fc_lb_pairs = self
+            .fc_lb_pairs
+            .iter()
+            .map(|(fc, lb, desc)| {
+                if *fc == -1 {
+                    PhysicalStructure {
+                        stream_name: "Table Stream".to_string(),
+                        structure_name: None,
+                        bytes: vec![],
+                        start_index: *fc as i64,
+                        end_index: *lb as i64,
+                        description: Some(desc.to_string()),
+                    }
+                } else {
+                    PhysicalStructure::from_reader_range(
+                        &mut table_stream,
+                        *fc as u64,
+                        (*fc as u32 + *lb) as u64,
+                        "Table Stream",
+                    )
+                    .description(desc)
                 }
-            } else {
-                PhysicalStructure::from_reader_range(
-                    &mut table_stream,
-                    *fc as u64,
-                    (*fc as u32 + *lb) as u64,
-                    "Table Stream",
-                )
-                .description(desc)
-            }
-        }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         output.extend(fc_lb_pairs);
 
         output
@@ -454,79 +524,6 @@ impl WordDocument {
                 println!("Storage: {}", entry.name());
             }
         }
-    }
-}
-
-/// Read the text Section of the document
-#[allow(non_snake_case)]
-fn _read_text<R: Read + Seek>(fib: &Fib, reader: &mut R) -> io::Result<()> {
-    if !fib.fComplex {
-        let mut main_text = vec![0; fib.ccpText as usize];
-        reader.seek(SeekFrom::Start(fib.fcMin as u64))?;
-        reader.read_exact(&mut main_text)?;
-
-        let mut footnote = vec![0; fib.ccpFtn as usize];
-        reader.seek(SeekFrom::Start((fib.fcMin + fib.ccpText) as u64))?;
-        reader.read_exact(&mut footnote)?;
-
-        let mut header = vec![0; fib.ccpHdr as usize];
-        reader.seek(SeekFrom::Start(
-            (fib.fcMin + fib.ccpText + fib.ccpFtn) as u64,
-        ))?;
-        reader.read_exact(&mut header)?;
-
-        let mut annotation = vec![0; fib.ccpAtn as usize];
-        reader.seek(SeekFrom::Start(
-            (fib.fcMin + fib.ccpText + fib.ccpFtn + fib.ccpHdr) as u64,
-        ))?;
-        reader.read_exact(&mut annotation)?;
-
-        let endnote_length = fib.fcMin + fib.ccpText + fib.ccpFtn + fib.ccpHdr + fib.ccpAtn
-            - (fib.fcMin + fib.ccpText + fib.ccpFtn + fib.ccpHdr + fib.ccpEdn);
-        let mut endnote = vec![0; endnote_length as usize];
-        reader.seek(SeekFrom::Start(
-            (fib.fcMin + fib.ccpText + fib.ccpFtn + fib.ccpHdr + fib.ccpAtn) as u64,
-        ))?;
-        reader.read_exact(&mut endnote)?;
-
-        let textbox_length =
-            fib.fcMin + fib.ccpText + fib.ccpFtn + fib.ccpHdr + fib.ccpAtn + fib.ccpEdn
-                - (fib.fcMin + fib.ccpText + fib.ccpFtn + fib.ccpHdr + fib.ccpEdn + fib.ccpTxbx);
-        let mut textbox = vec![0; textbox_length as usize];
-        reader.seek(SeekFrom::Start(
-            (fib.fcMin + fib.ccpText + fib.ccpFtn + fib.ccpHdr + fib.ccpAtn + fib.ccpEdn) as u64,
-        ))?;
-        reader.read_exact(&mut textbox)?;
-
-        let header_textbox_length = fib.fcMin
-            + fib.ccpText
-            + fib.ccpFtn
-            + fib.ccpHdr
-            + fib.ccpAtn
-            + fib.ccpEdn
-            + fib.ccpTxbx
-            - (fib.fcMin
-                + fib.ccpText
-                + fib.ccpFtn
-                + fib.ccpHdr
-                + fib.ccpEdn
-                + fib.ccpTxbx
-                + fib.ccpHrdTxbx);
-        let mut header_textbox = vec![0; header_textbox_length as usize];
-        reader.seek(SeekFrom::Start(
-            (fib.fcMin
-                + fib.ccpText
-                + fib.ccpFtn
-                + fib.ccpHdr
-                + fib.ccpAtn
-                + fib.ccpEdn
-                + fib.ccpTxbx) as u64,
-        ))?;
-        reader.read_exact(&mut header_textbox)?;
-
-        todo!();
-    } else {
-        todo!();
     }
 }
 
@@ -657,6 +654,21 @@ fn compute_subsctructure_differences<'a, 'b>(
     }
 
     differences
+}
+
+fn byte_to_string_arr(butes: &[u8]) -> Vec<String> {
+    let mut strings = Vec::new();
+
+    for byte in butes {
+        let c: char = char::from(*byte);
+        if c.is_ascii_alphanumeric() || c.is_ascii_punctuation() {
+            strings.push(c.to_string());
+        } else {
+            strings.push(format!("0x{:02X}", byte));
+        }
+    }
+
+    strings
 }
 
 // tests

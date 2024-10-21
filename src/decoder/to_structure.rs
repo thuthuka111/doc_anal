@@ -442,6 +442,47 @@ impl ToStructure for Fib {
     }
 }
 
+impl ToStructure for Text {
+    fn descriptions() -> JsonValue {
+        object! {
+            main_text: "main document",
+            footnote_text: "footnote subdocument",
+            header_text: "header subdocument",
+            annotation_text: "annotion subdocument",
+            endnote_text: "endnote subdocument",
+            textbox_text: "textbox document",
+            header_textbox_text: "header textbox subdocument",
+        }
+    }
+
+    fn structure_items(&self) -> Vec<StructureItem> {
+        let descriptions = Self::descriptions();
+        let self_json = json::parse(&serde_json::to_string(&self).unwrap()).unwrap();
+
+        let mut structure_items = vec![];
+        for (field_name, _) in self.iter() {
+            let field_val = self_json[field_name].to_string();
+            let description = if descriptions.has_key(&field_name) {
+                Some(descriptions[field_name].clone().to_string())
+            } else {
+                None
+            };
+
+            structure_items.push(StructureItem {
+                name: field_name.to_string(),
+                value: field_val,
+                description,
+            });
+        }
+
+        structure_items
+    }
+
+    fn substructures(&self) -> Option<Vec<Structure>> {
+        None
+    }
+}
+
 impl ToStructure for SHSHI {
     fn descriptions() -> JsonValue {
         object! {

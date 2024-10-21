@@ -820,6 +820,19 @@ pub struct PLCF<T: FromCStruct> {
     pub rgstruct: Vec<T>,
 }
 
+/// The different text subdocument of the word document
+#[allow(unused)]
+#[derive(Debug, Iterable, Serialize)]
+pub struct Text {
+    pub main_text: Vec<String>,
+    pub footnote_text: Vec<String>,
+    pub header_text: Vec<String>,
+    pub annotation_text: Vec<String>,
+    pub endnote_text: Vec<String>,
+    pub textbox_text: Vec<String>,
+    pub header_textbox_text: Vec<String>,
+}
+
 // The first few bytes of the PropertySetStream
 #[allow(non_snake_case, unused)]
 #[derive(Debug, Iterable, Serialize)]
