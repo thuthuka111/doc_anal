@@ -205,7 +205,7 @@ pub fn fib_from_read_impl<R: Read + Seek>(
     pairs.push((
         fcsttbfffn,
         lcbsttbfffn,
-        "Font information STTBF(FNN)".into(),
+        "Font information STTBF(FFN)".into(),
     ));
 
     let fcPlcffldMom = reader.read_i32::<LittleEndian>()?;

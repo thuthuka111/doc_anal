@@ -367,23 +367,22 @@ impl WordDocument {
             .open_stream(&self.table_stream_name)
             .unwrap();
 
-        let main_text_section = PhysicalStructure::from_reader_range(
+        let text_section = PhysicalStructure::from_reader_range(
             &mut word_doc_stream,
             fib.fcMin as u64,
-            fib.fcMin as u64 * fib.ccpText as u64,
-            "Table Stream",
-        )
-        .description("first character to last character of the regular text section");
-        output.push(main_text_section);
+            (fib.fcMin + fib.fcMac) as u64,
+            "WordDocument",
+        ).description("fib.fcMin - fib.fcMac");
+        output.push(text_section);
 
-        let stylesheet = PhysicalStructure::from_reader_range(
-            &mut table_stream,
-            fib.fcStshf as u64,
-            (fib.fcStshf + fib.lcbStshf as i32) as u64,
-            "Table Stream",
-        )
-        .description("STSHI(Stylesheet) structure");
-        output.push(stylesheet);
+        // let main_text_section = PhysicalStructure::from_reader_range(
+        //     &mut word_doc_stream,
+        //     fib.fcMin as u64,
+        //     fib.fcMin as u64 * fib.ccpText as u64,
+        //     "WordDocument",
+        // )
+        // .description("first character to last character of the regular text section");
+        // output.push(main_text_section);
 
         let fc_lb_pairs = self
             .fc_lb_pairs
@@ -444,8 +443,8 @@ impl WordDocument {
                     other_structure.bytes.clone(),
                 );
                 ComparisonPhysicalStructure {
-                    ref_structure,
-                    comp_structure: other_structure,
+                    ref_structure: other_structure,
+                    comp_structure: ref_structure,
                     difference_indices: differences,
                 }
             })
